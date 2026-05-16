@@ -22,7 +22,7 @@ Safer shell-history form:
   configure-hermes-cli.sh --api-url https://api.example.com
 
 Options:
-  --api-url URL              Public backend URL, without /v1.
+  --api-url URL              Public API URL, without /v1.
   --api-key KEY              User's afb_agent_... key. Can also use FITNESS_API_KEY.
   --fitness-bin PATH         CLI command/path. Defaults to fitness.
   --hermes-platform NAME     Hermes platform to enable terminal for. Defaults to whatsapp.
@@ -134,4 +134,3 @@ fi
 
 echo "Configured Hermes to use: $FITNESS_BIN"
 echo "Test with: $FITNESS_BIN doctor"
-

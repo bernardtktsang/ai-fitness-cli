@@ -200,7 +200,7 @@ def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
 def add_sync_commands(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("sync", help="Sync status.")
     nested = parser.add_subparsers(dest="sync_command", required=True)
-    status = nested.add_parser("status", help="Show HealthKit sync status.")
+    status = nested.add_parser("status", help="Show health data sync status.")
     status.add_argument("--stale-after-hours", type=int, default=24)
     add_common_output(status)
     set_remote(status, "sync.status")

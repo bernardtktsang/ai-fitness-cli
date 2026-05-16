@@ -2,10 +2,6 @@
 
 Remote-only command line client for AI Fitness Buddy agents and users.
 
-This package contains only the user/agent CLI. It does not include the backend,
-database models, migrations, iOS app, deployment scripts, MCP server, or private
-operator commands.
-
 ## What This Does
 
 `fitness` lets an agent such as Hermes, OpenClaw, or another shell-capable
@@ -169,15 +165,3 @@ export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 If login succeeds but an agent cannot use it, the agent probably does not have
 shell/terminal access enabled.
-
-## Not Included
-
-This package intentionally does not include:
-
-- admin user/key commands
-- database access
-- backend server code
-- MCP server code
-- migrations
-- deployment scripts
-- private product docs
