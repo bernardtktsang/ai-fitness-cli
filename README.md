@@ -40,6 +40,31 @@ fitness --help
 
 ## Recommended Agent Setup
 
+Install the CLI:
+
+```bash
+uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
+```
+
+Then run the setup command yourself in your terminal, replacing the example key:
+
+```bash
+fitness login \
+  --api-url https://api.bernardtktsangfitness.com \
+  --api-key afb_agent_...
+```
+
+Then ask your agent to verify it:
+
+```text
+Check my AI Fitness CLI setup with `fitness doctor`, then get my current
+fitness context with `fitness context brief`.
+```
+
+Agents often cannot safely handle hidden interactive prompts through their
+terminal tool. Avoid pasting API keys into chat. Paste the key directly into
+your own terminal.
+
 Give your agent this instruction:
 
 ```text
@@ -47,28 +72,10 @@ Install and configure the AI Fitness CLI from:
 https://github.com/bernardtktsang/ai-fitness-cli
 
 Use shell/terminal commands. Do not ask me to paste my API key into chat.
-Instead, ask me to paste the API key into a hidden terminal prompt.
+If a key is needed, ask me to run the login command myself in my terminal.
 
 After setup, use `fitness doctor` to verify access and `fitness context brief`
 to get my current fitness context.
-```
-
-Then the agent can run:
-
-```bash
-uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
-
-read -rsp "Paste your afb_agent_ API key: " FITNESS_API_KEY
-echo
-export FITNESS_API_KEY
-
-fitness login \
-  --api-url https://api.bernardtktsangfitness.com \
-  --api-key "$FITNESS_API_KEY"
-
-unset FITNESS_API_KEY
-fitness doctor
-fitness context brief
 ```
 
 ## Hermes Setup
@@ -80,17 +87,16 @@ gateway.
 ```bash
 uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
 
-read -rsp "Paste your afb_agent_ API key: " FITNESS_API_KEY
-echo
-export FITNESS_API_KEY
-
 fitness hermes setup \
   --api-url https://api.bernardtktsangfitness.com \
+  --api-key afb_agent_... \
   --restart-gateway
 
-unset FITNESS_API_KEY
 fitness doctor
 ```
+
+Run that command yourself in the Hermes machine terminal. Do not paste the API
+key into a chat with the agent.
 
 `fitness-configure-hermes` is also installed as a script-friendly alias for the
 same setup flow:
