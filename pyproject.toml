@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-fitness-cli"
+version = "0.1.0"
+description = "Remote-only CLI for AI Fitness Buddy agents and users."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+  { name = "Bernard Tsang" }
+]
+dependencies = []
+
+[project.scripts]
+fitness = "ai_fitness_cli.cli:main"
+fitness-configure-hermes = "ai_fitness_cli.hermes_setup:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_fitness_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
