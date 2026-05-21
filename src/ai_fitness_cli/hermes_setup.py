@@ -7,7 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ai_fitness_cli.cli import API_KEY_ENV, API_URL_ENV, get_json, normalize_api_url, write_config
+from ai_fitness_cli.cli import (
+    API_KEY_ENV,
+    API_URL_ENV,
+    DEFAULT_API_URL,
+    get_json,
+    normalize_api_url,
+    read_config,
+    write_config,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,19 +55,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def configure(args: argparse.Namespace) -> int:
-    if not args.api_url:
-        raise ValueError("missing --api-url or FITNESS_API_URL")
-    if not args.api_key:
-        raise ValueError("missing --api-key or FITNESS_API_KEY")
-    if not args.api_key.startswith("afb_agent_"):
+    config_path = Path(args.config_file).expanduser() if args.config_file else default_config_path()
+    existing_config = read_config(config_path)
+    api_url = args.api_url or existing_config.get("api_url") or DEFAULT_API_URL
+    api_key = args.api_key or existing_config.get("api_key")
+    if not api_key:
+        raise ValueError("missing agent key; run `fitness login` first")
+    if not api_key.startswith("afb_agent_"):
         raise ValueError("expected an afb_agent_... key for Hermes/agent CLI access")
 
-    api_url = normalize_api_url(args.api_url)
+    api_url = normalize_api_url(api_url)
     if not args.skip_verify:
-        get_json(f"{api_url}/v1/agent/me", args.api_key)
+        get_json(f"{api_url}/v1/agent/me", api_key)
 
-    config_path = Path(args.config_file).expanduser() if args.config_file else default_config_path()
-    write_config(config_path, {"api_url": api_url, "api_key": args.api_key})
+    write_config(config_path, {"api_url": api_url, "api_key": api_key})
 
     if not args.skip_hermes_memory:
         write_memory_note(Path(args.memory_file).expanduser(), args.fitness_bin)
@@ -87,10 +96,7 @@ def configure(args: argparse.Namespace) -> int:
 
 
 def default_config_path() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME")
-    if base:
-        return Path(base).expanduser() / "ai-fitness-cli" / "config.json"
-    return Path.home() / ".config" / "ai-fitness-cli" / "config.json"
+    return Path.home() / ".ai-fitness" / "config.json"
 
 
 def write_memory_note(memory_file: Path, fitness_bin: str) -> None:
@@ -132,4 +138,3 @@ def shutil_which(executable: str) -> str | None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

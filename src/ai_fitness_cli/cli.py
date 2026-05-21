@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import stat
@@ -13,6 +14,7 @@ from urllib import error, request
 CONFIG_ENV = "AI_FITNESS_CLI_CONFIG"
 API_URL_ENV = "FITNESS_API_URL"
 API_KEY_ENV = "FITNESS_API_KEY"
+DEFAULT_API_URL = "https://api.bernardtktsangfitness.com"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -84,9 +86,9 @@ def set_remote(parser: argparse.ArgumentParser, command_path: str) -> None:
 
 
 def add_login_commands(subparsers: argparse._SubParsersAction) -> None:
-    login = subparsers.add_parser("login", help="Store remote API URL and agent key locally.")
-    login.add_argument("--api-url", required=True, help="Backend URL without /v1.")
-    login.add_argument("--api-key", required=True, help="User's afb_agent_... key.")
+    login = subparsers.add_parser("login", help="Connect this machine to AI Health Sync.")
+    login.add_argument("--api-url", default=DEFAULT_API_URL, help="Backend URL without /v1.")
+    login.add_argument("--api-key", help="User's afb_agent_... key. If omitted, prompts securely.")
     login.add_argument("--config-file", help="Override config file path.")
     login.add_argument("--skip-verify", action="store_true", help="Store config without calling API.")
     login.set_defaults(handler=handle_login)
@@ -429,15 +431,18 @@ def add_dashboard_commands(subparsers: argparse._SubParsersAction) -> None:
 
 def handle_login(args: argparse.Namespace) -> int:
     api_url = normalize_api_url(args.api_url)
-    api_key = args.api_key
+    api_key = (args.api_key or prompt_for_agent_key()).strip()
     if not api_key.startswith("afb_agent_"):
         raise ValueError("login requires an afb_agent_... key")
-    if not args.skip_verify:
-        get_json(f"{api_url}/v1/agent/me", api_key)
+    response = {} if args.skip_verify else get_json(f"{api_url}/v1/agent/me", api_key)
     config_path = get_config_path(args.config_file)
     write_config(config_path, {"api_url": api_url, "api_key": api_key})
-    print(f"saved config: {config_path}")
-    print("test with: fitness doctor")
+    if response:
+        print(f"Connected as {response.get('display_name') or response.get('user_id')}")
+    print(f"Saved Agent key: {display_key_prefix(api_key)}")
+    print(f"API URL: {api_url}")
+    print(f"Config: {config_path}")
+    print("Run `fitness doctor` to verify your setup.")
     return 0
 
 
@@ -479,14 +484,15 @@ def handle_hermes_setup(args: argparse.Namespace) -> int:
 
 
 def handle_doctor(args: argparse.Namespace) -> int:
-    api_url, api_key = get_credentials()
+    api_url, api_key, source = get_credentials()
     response = get_json(f"{api_url}/v1/agent/me", api_key)
-    result = {"mode": "remote", "api_url": api_url, **response}
+    result = {"mode": "remote", "api_url": api_url, "credential_source": source, **response}
     if args.format == "json":
         print(json.dumps(result, indent=2))
     else:
         print("mode=remote")
         print(f"api_url={api_url}")
+        print(f"credential_source={source}")
         print(f"user_id={response.get('user_id')}")
         print(f"display_name={response.get('display_name')}")
         print(f"timezone={response.get('timezone')}")
@@ -495,7 +501,7 @@ def handle_doctor(args: argparse.Namespace) -> int:
 
 
 def handle_remote_command(args: argparse.Namespace) -> int:
-    api_url, api_key = get_credentials()
+    api_url, api_key, _ = get_credentials()
     payload = {
         "command": args.remote_command,
         "args": remote_args_from_namespace(args),
@@ -521,17 +527,33 @@ def remote_args_from_namespace(args: argparse.Namespace) -> dict[str, Any]:
     return values
 
 
-def get_credentials() -> tuple[str, str]:
+def prompt_for_agent_key() -> str:
+    print(
+        "Open AI Health Sync on your iPhone:\n"
+        "Sync -> Agent Access -> Create Agent Key\n\n"
+        "Paste the Agent API key here. It starts with afb_agent_.\n"
+        "The key stays on this machine and is never printed back."
+    )
+    return getpass.getpass("Agent API key: ")
+
+
+def display_key_prefix(api_key: str) -> str:
+    visible_chars = 16 if len(api_key) > 16 else 8
+    return f"{api_key[:visible_chars]}..."
+
+
+def get_credentials() -> tuple[str, str, str]:
     env_url = os.environ.get(API_URL_ENV)
     env_key = os.environ.get(API_KEY_ENV)
     if env_url and env_key:
-        return normalize_api_url(env_url), env_key
-    config = read_config(get_config_path(None))
+        return normalize_api_url(env_url), env_key, "env"
+    config_path = get_config_path(None)
+    config = read_config(config_path)
     api_url = config.get("api_url")
     api_key = config.get("api_key")
     if not api_url or not api_key:
-        raise ValueError("not logged in; run `fitness login --api-url URL --api-key afb_agent_...`")
-    return normalize_api_url(api_url), api_key
+        raise ValueError("not logged in; run `fitness login`")
+    return normalize_api_url(api_url), api_key, str(config_path)
 
 
 def get_config_path(override: str | None) -> Path:
@@ -539,10 +561,7 @@ def get_config_path(override: str | None) -> Path:
         return Path(override).expanduser()
     if env_path := os.environ.get(CONFIG_ENV):
         return Path(env_path).expanduser()
-    base = os.environ.get("XDG_CONFIG_HOME")
-    if base:
-        return Path(base).expanduser() / "ai-fitness-cli" / "config.json"
-    return Path.home() / ".config" / "ai-fitness-cli" / "config.json"
+    return Path.home() / ".ai-fitness" / "config.json"
 
 
 def read_config(path: Path) -> dict[str, str]:

@@ -24,3 +24,9 @@ packages = ["src/ai_fitness_cli"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.13",
+]

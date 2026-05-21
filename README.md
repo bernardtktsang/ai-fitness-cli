@@ -46,13 +46,15 @@ Install the CLI:
 uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
 ```
 
-Then run the setup command yourself in your terminal, replacing the example key:
+Then run the setup command yourself in your terminal:
 
 ```bash
-fitness login \
-  --api-url https://api.bernardtktsangfitness.com \
-  --api-key afb_agent_...
+fitness login
 ```
+
+Open AI Health Sync on your iPhone, go to `Sync -> Agent Access`, create an
+Agent API key, and paste it into the terminal prompt. Do not paste the key into
+chat.
 
 Then ask your agent to verify it:
 
@@ -87,16 +89,15 @@ gateway.
 ```bash
 uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
 
+fitness login
 fitness hermes setup \
-  --api-url https://api.bernardtktsangfitness.com \
-  --api-key afb_agent_... \
   --restart-gateway
 
 fitness doctor
 ```
 
-Run that command yourself in the Hermes machine terminal. Do not paste the API
-key into a chat with the agent.
+Run `fitness login` yourself in the Hermes machine terminal. Do not paste the
+API key into a chat with the agent.
 
 `fitness-configure-hermes` is also installed as a script-friendly alias for the
 same setup flow:
@@ -130,15 +131,17 @@ Use the CLI output to answer in plain language.
 ## Manual Login
 
 ```bash
-fitness login \
-  --api-url https://api.bernardtktsangfitness.com \
-  --api-key afb_agent_...
+fitness login
 ```
+
+`fitness login` defaults to `https://api.bernardtktsangfitness.com`, validates
+the Agent API key with the hosted API, and stores it locally. Advanced/dev usage
+can still pass `--api-url` and `--api-key`.
 
 The key is stored in:
 
 ```text
-~/.config/ai-fitness-cli/config.json
+~/.ai-fitness/config.json
 ```
 
 The file is written with `0600` permissions so only the local user can read it.
