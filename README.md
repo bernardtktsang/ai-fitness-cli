@@ -128,6 +128,32 @@ Do not print secrets or environment variables.
 Use the CLI output to answer in plain language.
 ```
 
+## Agent Skills
+
+This repo includes optional agent skill folders:
+
+- `fitness-program-design`: programme design, macro targets, phase targets,
+  hybrid training plans, and injury-aware replanning.
+- `meal-logging`: meal estimation, logging, corrections, confirmations, and
+  target review.
+
+Agents can use them in either of two generic ways:
+
+1. Read the relevant `skills/<name>/SKILL.md` file directly from a cloned or
+   downloaded copy of this repo.
+2. Copy the whole `skills/<name>` folder into whatever local skill directory
+   that agent supports.
+
+Example:
+
+```bash
+git clone https://github.com/bernardtktsang/ai-fitness-cli.git
+cp -R ai-fitness-cli/skills/meal-logging ~/.codex/skills/
+```
+
+Use the destination path for your own agent. The skills are plain folders, so
+they are not tied to the `fitness` executable or to any one assistant runtime.
+
 ## Manual Login
 
 ```bash
