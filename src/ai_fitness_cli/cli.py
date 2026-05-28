@@ -4,6 +4,7 @@ import argparse
 import getpass
 import json
 import os
+import shutil
 import stat
 import sys
 from pathlib import Path
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_login_commands(subparsers)
     add_hermes_commands(subparsers)
+    add_skill_commands(subparsers)
     add_doctor_command(subparsers)
     add_context_commands(subparsers)
     add_progress_commands(subparsers)
@@ -128,6 +130,29 @@ def add_hermes_commands(subparsers: argparse._SubParsersAction) -> None:
     setup.add_argument("--skip-enable-terminal", action="store_true")
     setup.add_argument("--restart-gateway", action="store_true")
     setup.set_defaults(handler=handle_hermes_setup)
+
+
+def add_skill_commands(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser("skills", help="Read or export bundled agent skills.")
+    nested = parser.add_subparsers(dest="skills_command", required=True)
+
+    list_cmd = nested.add_parser("list", help="List bundled skills.")
+    add_common_output(list_cmd)
+    list_cmd.set_defaults(handler=handle_skills_list)
+
+    show = nested.add_parser("show", help="Print a bundled skill's SKILL.md.")
+    show.add_argument("skill", help="Bundled skill name.")
+    show.set_defaults(handler=handle_skills_show)
+
+    export = nested.add_parser("export", help="Copy bundled skills into an agent skill repository.")
+    export.add_argument("--dest", required=True, help="Destination skill repository directory.")
+    export.add_argument(
+        "--skill",
+        action="append",
+        help="Skill name to export. Repeat to export multiple. Defaults to all.",
+    )
+    export.add_argument("--force", action="store_true", help="Overwrite existing skill folders.")
+    export.set_defaults(handler=handle_skills_export)
 
 
 def add_doctor_command(subparsers: argparse._SubParsersAction) -> None:
@@ -483,6 +508,47 @@ def handle_hermes_setup(args: argparse.Namespace) -> int:
     return configure(args)
 
 
+def handle_skills_list(args: argparse.Namespace) -> int:
+    skills = bundled_skills()
+    if args.format == "json":
+        print(json.dumps({"skills": skills}, indent=2))
+    else:
+        for skill in skills:
+            print(f"{skill['name']}: {skill['description']}")
+    return 0
+
+
+def handle_skills_show(args: argparse.Namespace) -> int:
+    skill_dir = get_skill_dir(args.skill)
+    print((skill_dir / "SKILL.md").read_text(), end="")
+    return 0
+
+
+def handle_skills_export(args: argparse.Namespace) -> int:
+    selected = args.skill or available_skill_names()
+    dest_dir = Path(args.dest).expanduser()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    installed: list[str] = []
+    skipped: list[str] = []
+    for skill_name in selected:
+        source = get_skill_dir(skill_name)
+        target = dest_dir / skill_name
+        if target.exists():
+            if not args.force:
+                skipped.append(skill_name)
+                continue
+            shutil.rmtree(target)
+        shutil.copytree(source, target)
+        installed.append(skill_name)
+
+    for skill_name in installed:
+        print(f"exported {skill_name} -> {dest_dir / skill_name}")
+    for skill_name in skipped:
+        print(f"skipped {skill_name}; already exists (use --force to overwrite)")
+    return 0
+
+
 def handle_doctor(args: argparse.Namespace) -> int:
     api_url, api_key, source = get_credentials()
     response = get_json(f"{api_url}/v1/agent/me", api_key)
@@ -574,6 +640,52 @@ def write_config(path: Path, payload: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n")
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
+def bundled_skills_dir() -> Path:
+    package_dir = Path(__file__).resolve().parent
+    packaged_skills = package_dir / "skills"
+    if packaged_skills.exists():
+        return packaged_skills
+    repo_skills = package_dir.parent.parent / "skills"
+    if repo_skills.exists():
+        return repo_skills
+    raise FileNotFoundError("bundled skills directory not found")
+
+
+def available_skill_names() -> list[str]:
+    return sorted(path.name for path in bundled_skills_dir().iterdir() if (path / "SKILL.md").is_file())
+
+
+def get_skill_dir(skill_name: str) -> Path:
+    skill_dir = bundled_skills_dir() / skill_name
+    if not (skill_dir / "SKILL.md").is_file():
+        available = ", ".join(available_skill_names())
+        raise ValueError(f"unknown skill {skill_name!r}; available skills: {available}")
+    return skill_dir
+
+
+def bundled_skills() -> list[dict[str, str]]:
+    return [
+        {
+            "name": name,
+            "description": read_skill_description(get_skill_dir(name) / "SKILL.md"),
+        }
+        for name in available_skill_names()
+    ]
+
+
+def read_skill_description(skill_file: Path) -> str:
+    in_frontmatter = False
+    for line in skill_file.read_text().splitlines():
+        if line == "---":
+            if in_frontmatter:
+                break
+            in_frontmatter = True
+            continue
+        if in_frontmatter and line.startswith("description:"):
+            return line.partition(":")[2].strip()
+    return ""
 
 
 def normalize_api_url(api_url: str) -> str:

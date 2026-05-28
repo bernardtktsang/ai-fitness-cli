@@ -21,6 +21,19 @@ fitness-configure-hermes = "ai_fitness_cli.hermes_setup:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_fitness_cli"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills" = "ai_fitness_cli/skills"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/skills",
+  "/tests",
+  "/README.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

@@ -116,7 +116,10 @@ def write_memory_note(memory_file: Path, fitness_bin: str) -> None:
             f"commands include `{fitness_bin} doctor`, `{fitness_bin} context brief`, "
             f"`{fitness_bin} sync status`, `{fitness_bin} health summary --start YYYY-MM-DD "
             f"--end YYYY-MM-DD`, and `{fitness_bin} meals list --start YYYY-MM-DD "
-            "--end YYYY-MM-DD`.\n"
+            f"--end YYYY-MM-DD`. If you have a local skill repository, add the bundled AI "
+            f"Fitness skills with `{fitness_bin} skills export --dest <your-skill-repository-path> "
+            f"--force`. Otherwise read detailed workflows with `{fitness_bin} skills show "
+            f"meal-logging` and `{fitness_bin} skills show fitness-program-design`.\n"
         )
 
 

@@ -135,6 +135,35 @@ class CliTests(unittest.TestCase):
     def test_admin_commands_are_not_registered(self) -> None:
         self.assertEqual(cli.main(["admin"]), 2)
 
+    def test_skills_list_reports_bundled_skills(self) -> None:
+        with mock.patch("sys.stdout") as stdout:
+            result = cli.main(["skills", "list", "--json"])
+
+        self.assertEqual(result, 0)
+        output = "".join(call.args[0] for call in stdout.write.call_args_list)
+        payload = json.loads(output)
+        names = {skill["name"] for skill in payload["skills"]}
+        self.assertIn("fitness-program-design", names)
+        self.assertIn("meal-logging", names)
+
+    def test_skills_show_prints_skill(self) -> None:
+        with mock.patch("sys.stdout") as stdout:
+            result = cli.main(["skills", "show", "meal-logging"])
+
+        self.assertEqual(result, 0)
+        output = "".join(call.args[0] for call in stdout.write.call_args_list)
+        self.assertIn("name: meal-logging", output)
+        self.assertIn("Use this skill", output)
+
+    def test_skills_export_copies_to_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = cli.main(["skills", "export", "--skill", "meal-logging", "--dest", temp_dir])
+
+            skill_file = Path(temp_dir) / "meal-logging" / "SKILL.md"
+            self.assertEqual(result, 0)
+            self.assertTrue(skill_file.exists())
+            self.assertIn("Use this skill", skill_file.read_text())
+
     def test_hermes_setup_writes_config_and_memory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / "config.json"
