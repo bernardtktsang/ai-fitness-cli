@@ -39,7 +39,52 @@ Nutrition label:
 
 ## Estimate Nutrition
 
-Calculate each item's calories, protein, carbs, and fat. Add optional nutrients when useful: saturated fat, fiber, sugar, sodium, water, or caffeine.
+Calculate each item's calories, protein, carbs, and fat. The backend validates
+meal JSON keys strictly, so use only the exact flat field names below. Do not
+send nested `macros` or `nutrients` objects.
+
+Item-level nutrition keys:
+
+- `calories`
+- `protein_g`
+- `carbs_g`
+- `fat_g`
+- `fiber_g`
+- `sugar_g`
+- `sodium_mg`
+- `saturated_fat_g`
+- `caffeine_mg`
+- `water_ml`
+- `confidence`
+
+Meal-level nutrition keys:
+
+- `total_calories`
+- `protein_g`
+- `carbs_g`
+- `fat_g`
+- `fiber_g`
+- `sugar_g`
+- `sodium_mg`
+- `saturated_fat_g`
+- `caffeine_mg`
+- `water_ml`
+- `confidence`
+
+Use `calories` for item-level calories and `total_calories` for the meal-level
+calorie total. That name difference matters.
+
+Add optional nutrients when useful:
+
+- `caffeine_mg` - coffee, tea, pre-workout (black coffee ~95 mg/cup)
+- `fiber_g` - whole grains, vegetables, fruits
+- `sodium_mg` - salt/sodium tracking
+- `sugar_g` - total sugars
+- `water_ml` - hydration tracking
+- `saturated_fat_g` - saturated fat breakdown
+
+Include optional fields in the meal JSON when the user mentions them (e.g.,
+"log a black coffee with caffeine"). Sum `total_calories` from items.
 
 If the user asks for higher accuracy for branded products, search reliable product pages or nutrition databases and note any regional uncertainty.
 
@@ -76,6 +121,8 @@ Required JSON fields:
 Rules:
 
 - Do not include `quantity`; use `portion_description`.
+- Do not include nested `macros` or `nutrients`; use the flat keys listed above.
+- At item level use `calories`; at meal level use `total_calories`.
 - Sum `total_calories` from items.
 - Valid `meal_type` values are usually `breakfast`, `lunch`, `dinner`, and `snack`.
 - Prefer a temporary JSON file and remove it after a successful save.
@@ -92,6 +139,31 @@ fitness meals update --meal-id <meal_id> --meal-update-file /tmp/meal.json --jso
 Use the same meal when the user adds items after confirming or correcting a meal. Do not create a new meal for each addition unless the user clearly starts a separate meal.
 
 When the user says "half a banana", "only one slice", or similar, apply the correction directly, recalculate totals, update the log, and present the new numbers.
+
+**Update recalculation behavior:** `fitness meals update` recalculates
+meal-level aggregate fields from the provided `items` array automatically when
+item values are present: `total_calories`, `protein_g`, `carbs_g`, `fat_g`,
+`fiber_g`, `sugar_g`, `sodium_mg`, `saturated_fat_g`, `caffeine_mg`, and
+`water_ml`. The response includes a `nutrition_integrity` block:
+
+```json
+"nutrition_integrity": {
+  "item_calories_complete": true,
+  "item_total_mismatch": false,
+  "known_item_calories": 995.0,
+  "missing_item_calorie_count": 0,
+  "total_calories_source": "item_sum",
+  "warnings": []
+}
+```
+
+When `item_total_mismatch` is `false` and `total_calories_source` is `"item_sum"`, the totals match the item-level data exactly.
+
+**Save vs Update flag difference (common pitfall):**
+- `meals save` uses `--meal-file`
+- `meals update` uses `--meal-update-file` (different flag name!)
+
+Using `--meal-file` with `meals update` produces a CLI usage error. Always verify the flag name before invoking.
 
 ## Confirm A Meal
 
@@ -143,7 +215,13 @@ For meal ideas or variations, use short numbered options with ingredients and to
 
 - Do not save from a photo unless the user asked to log it.
 - Do not let a surprise image interrupt an unrelated conversation; ask what they want done with it.
-- Always include a timezone offset in `eaten_at`.
+- **Timezone offsets required in JSON timestamps:** The `eaten_at` field must include a timezone offset (e.g., `2026-05-17T12:00:00+08:00` or `2026-05-17T12:00:00Z`). A bare datetime without offset causes a Pydantic validation error.
+- **Meal item field `quantity` is rejected:** Do not include `quantity` in meal items. Use `portion_description` (optional string) instead, but the most reliable approach is to encode portion info directly in the item `name` (e.g., "Hash brown (half)").
+- **No nested macro/nutrient objects:** Do not send `macros`, `nutrients`, `nutrition`, or similar nested objects. The backend accepts flat keys only and will reject unknown keys.
+- **Calorie key difference:** Use `calories` inside each item, but `total_calories` on the meal itself. Do not use meal-level `calories` or item-level `total_calories`.
+- **Meal JSON timestamp field:** Use `eaten_at` (ISO 8601 with timezone offset), not `logged_at`. The CLI requires `eaten_at` for meal saves/updates.
+- **Date arguments:** Most commands use `--start` and `--end` (not `--start-date`). Example: `fitness meals list --start 2026-05-10 --end 2026-05-10` - using `--start-date` will fail with a missing-argument error.
+- **Assume message send time for `eaten_at`:** When the user confirms they just ate a meal (e.g., "yup," "just ate it," "just now"), do not ask what time. Use the current system time as the timestamp. Only ask for a specific time if the user says they ate it much earlier or later.
 - Clarify raw vs cooked weights for meat.
 - Ask whether broth, sauces, oils, or shared portions were consumed.
 - When a user questions a total, review the calculation item by item instead of defending the estimate.

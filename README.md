@@ -38,20 +38,24 @@ After I finish login, run:
 fitness doctor
 fitness context brief
 
-If you have a local skill repository, add the bundled AI Fitness skills to it:
+List every AI Fitness skill bundled with the installed CLI:
+fitness skills list
+
+If you have a local skill repository, install all bundled AI Fitness skills into it:
 fitness skills export --dest <your-skill-repository-path> --force
 
-If you do not have a skill repository, read the relevant skill directly:
-fitness skills show meal-logging
-fitness skills show fitness-program-design
+If you do not have a skill repository, read each listed skill directly:
+fitness skills show <skill-name>
 ```
 
 The only secret step is `fitness login`; the user should run it in their own
 terminal so the API key is never pasted into chat.
 
-## Quick Install
+## Manual Setup
 
-Install from the public GitHub repo:
+Use this flow when you are setting up the CLI yourself.
+
+1. Install from the public GitHub repo:
 
 ```bash
 python3 -m pip install --user --upgrade git+https://github.com/bernardtktsang/ai-fitness-cli.git
@@ -64,13 +68,32 @@ uv tool install git+https://github.com/bernardtktsang/ai-fitness-cli.git
 pipx install git+https://github.com/bernardtktsang/ai-fitness-cli.git
 ```
 
-Check it installed:
+2. Check it installed:
 
 ```bash
 fitness --help
 ```
 
+3. Log in from your own terminal:
+
+```bash
+fitness login
+```
+
+Open AI Health Sync on your iPhone, go to `Sync -> Agent Access`, create an
+Agent API key, and paste it into the terminal prompt. Do not paste the key into
+chat.
+
+4. Verify access:
+
+```bash
+fitness doctor
+fitness context brief
+```
+
 ## Recommended Agent Setup
+
+Use this flow when an agent will run the CLI for you.
 
 Install the CLI:
 
@@ -84,9 +107,8 @@ Then run the setup command yourself in your terminal:
 fitness login
 ```
 
-Open AI Health Sync on your iPhone, go to `Sync -> Agent Access`, create an
-Agent API key, and paste it into the terminal prompt. Do not paste the key into
-chat.
+Create the Agent API key in AI Health Sync at `Sync -> Agent Access`, then paste
+it into the terminal prompt. Do not paste the key into chat.
 
 Then ask your agent to verify it:
 
@@ -112,12 +134,13 @@ If a key is needed, ask me to run the login command myself in my terminal.
 After setup, use `fitness doctor` to verify access and `fitness context brief`
 to get my current fitness context.
 
-Add the bundled AI Fitness skills to your skill repository if you have one:
+Run `fitness skills list` to discover every bundled AI Fitness skill.
+
+If you have a local skill repository, install all bundled AI Fitness skills:
 fitness skills export --dest <your-skill-repository-path> --force
 
-If you do not have a skill repository, read skills directly with:
-fitness skills show meal-logging
-fitness skills show fitness-program-design
+If you do not have a skill repository, read each listed skill directly:
+fitness skills show <skill-name>
 ```
 
 ## Hermes Setup
@@ -155,8 +178,9 @@ For agents other than Hermes:
 1. Install the CLI with `python3 -m pip install --user --upgrade git+...`.
 2. Run `fitness login`.
 3. Make sure the agent has shell/terminal command access.
-4. Export the bundled skills into the agent's skill repository if it has one.
-5. Add this instruction to the agent's memory, rules, or system context:
+4. Run `fitness skills list` so the agent sees every bundled skill.
+5. Export all bundled skills into the agent's skill repository if it has one.
+6. Add this instruction to the agent's memory, rules, or system context:
 
 ```text
 For fitness, health, nutrition, meals, workouts, dashboard, targets, or progress
@@ -164,9 +188,11 @@ questions, use the shell command `fitness`.
 
 Use `fitness doctor` to verify access.
 Use `fitness context brief` for current context.
-Use `fitness skills show meal-logging` or `fitness skills show fitness-program-design`
-when the task needs a detailed workflow and those skills are not already installed
-in your skill repository.
+Run `fitness skills list` to see all bundled AI Fitness skills.
+Install all bundled skills with `fitness skills export --dest <your-skill-repository-path> --force`
+when you have a skill repository.
+If the skills are not installed, read the relevant listed skill with `fitness skills show <skill-name>`
+before handling meal logging, programme design, target, or nutrition review tasks.
 Do not ask for API keys.
 Do not print secrets or environment variables.
 Use the CLI output to answer in plain language.
@@ -174,18 +200,21 @@ Use the CLI output to answer in plain language.
 
 ## Agent Skills
 
-The installed CLI includes optional agent skill folders:
+The installed CLI includes optional agent skill folders. Agents should run
+`fitness skills list` after installing the CLI because that command is the source
+of truth for every skill bundled with the current package.
 
-- `fitness-program-design`: programme design, macro targets, phase targets,
-  hybrid training plans, and injury-aware replanning.
-- `meal-logging`: meal estimation, logging, corrections, confirmations, and
-  target review.
+Agents can use the skills in any of three generic ways:
 
-Agents can use them in either of three generic ways:
-
-1. Export the bundled skill folders into the agent's local skill repository.
-2. Print and read the skill content directly from the installed CLI.
+1. Export all bundled skill folders into the agent's local skill repository.
+2. Print and read each skill directly from the installed CLI.
 3. Read or copy the source `skills/<name>` folders from a cloned repo.
+
+List every bundled skill:
+
+```bash
+fitness skills list
+```
 
 Export all bundled skills:
 
@@ -196,18 +225,22 @@ fitness skills export --dest <your-skill-repository-path> --force
 Export one skill:
 
 ```bash
-fitness skills export --skill meal-logging --dest <your-skill-repository-path> --force
+fitness skills export --skill <skill-name> --dest <your-skill-repository-path> --force
 ```
 
-Read a skill without exporting:
+Read a listed skill without exporting:
 
 ```bash
-fitness skills show meal-logging
-fitness skills show fitness-program-design
+fitness skills show <skill-name>
 ```
 
-Use the destination path for your own agent. The skills are plain folders and
-are not tied to any one assistant runtime.
+If you are working from a cloned repo instead of the installed CLI, the same
+skills live under `skills/`. Copy each folder in that directory into your
+agent's skill repository, preserving the folder name and `SKILL.md` file.
+
+Use the destination path for your own agent. The skills are plain folders, are
+not tied to any one assistant runtime, and `fitness skills export` without
+`--skill` installs all bundled skills.
 
 ## Manual Login
 
@@ -239,8 +272,8 @@ export FITNESS_API_KEY=afb_agent_...
 fitness doctor
 fitness context brief
 fitness skills list
-fitness skills export --dest <your-skill-repository-path>
-fitness skills show meal-logging
+fitness skills export --dest <your-skill-repository-path> --force
+fitness skills show <skill-name>
 fitness sync status
 fitness health summary --start 2026-05-01 --end 2026-05-16
 fitness meals list --start 2026-05-01 --end 2026-05-16
