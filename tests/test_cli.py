@@ -225,6 +225,7 @@ class CliTests(unittest.TestCase):
         output = "".join(call.args[0] for call in stdout.write.call_args_list)
         payload = json.loads(output)
         names = {skill["name"] for skill in payload["skills"]}
+        self.assertIn("ai-fitness-buddy-cli", names)
         self.assertIn("fitness-program-design", names)
         self.assertIn("meal-logging", names)
 

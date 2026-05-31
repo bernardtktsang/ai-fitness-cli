@@ -93,7 +93,7 @@ If the user asks for higher accuracy for branded products, search reliable produ
 Build a JSON object and save with:
 
 ```bash
-fitness meals save --meal-file /tmp/meal.json --json
+fitness meals save --file /tmp/meal.json --json
 ```
 
 Required JSON fields:
@@ -133,7 +133,7 @@ Rules:
 For corrections, rebuild the full updated meal payload and call:
 
 ```bash
-fitness meals update --meal-id <meal_id> --meal-update-file /tmp/meal.json --json
+fitness meals update --meal-id <meal_id> --file /tmp/meal.json --json
 ```
 
 Use the same meal when the user adds items after confirming or correcting a meal. Do not create a new meal for each addition unless the user clearly starts a separate meal.
@@ -160,10 +160,10 @@ item values are present: `total_calories`, `protein_g`, `carbs_g`, `fat_g`,
 When `item_total_mismatch` is `false` and `total_calories_source` is `"item_sum"`, the totals match the item-level data exactly.
 
 **Save vs Update flag difference (common pitfall):**
-- `meals save` uses `--meal-file`
-- `meals update` uses `--meal-update-file` (different flag name!)
+- Both `meals save` and `meals update` accept the shared `--file` alias.
+- The generated long-form flags are `--meal-file` for save and `--meal-update-file` for update.
 
-Using `--meal-file` with `meals update` produces a CLI usage error. Always verify the flag name before invoking.
+Prefer `--file` unless you specifically need the long-form flag.
 
 ## Confirm A Meal
 
@@ -172,7 +172,7 @@ Confirmation signals include "yes", "confirm", "save it", "about right", and sim
 After confirmation, update the meal status:
 
 ```bash
-fitness meals update --meal-id <meal_id> --meal-update-file /tmp/meal-confirmed.json --json
+fitness meals update --meal-id <meal_id> --file /tmp/meal-confirmed.json --json
 ```
 
 The update payload should include the current full meal data plus:
