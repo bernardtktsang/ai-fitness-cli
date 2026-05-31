@@ -76,11 +76,21 @@ def add_common_output(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def add_json_input(parser: argparse.ArgumentParser, name: str, required: bool = True) -> None:
+def add_json_input(
+    parser: argparse.ArgumentParser,
+    name: str,
+    required: bool = True,
+    file_aliases: tuple[str, ...] = (),
+) -> None:
     group = parser.add_mutually_exclusive_group(required=required)
     flag = name.replace("_", "-")
     group.add_argument(f"--{flag}-json", dest=f"{name}_json", help=f"Inline JSON for {name}.")
-    group.add_argument(f"--{flag}-file", dest=f"{name}_file", help=f"Path to JSON file for {name}.")
+    group.add_argument(
+        f"--{flag}-file",
+        *file_aliases,
+        dest=f"{name}_file",
+        help=f"Path to JSON file for {name}.",
+    )
 
 
 def set_remote(parser: argparse.ArgumentParser, command_path: str) -> None:
@@ -264,13 +274,13 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     set_remote(list_cmd, "meals.list")
 
     save = nested.add_parser("save", help="Save a meal log from JSON.")
-    add_json_input(save, "meal")
+    add_json_input(save, "meal", file_aliases=("--file",))
     add_common_output(save)
     set_remote(save, "meals.save")
 
     update = nested.add_parser("update", help="Update a meal log from JSON.")
     update.add_argument("--meal-id", required=True)
-    add_json_input(update, "meal_update")
+    add_json_input(update, "meal_update", file_aliases=("--file",))
     add_common_output(update)
     set_remote(update, "meals.update")
 
@@ -726,8 +736,46 @@ def request_json(
         with request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8")
-        raise ValueError(f"remote API returned HTTP {exc.code}: {detail}") from exc
+        body = exc.read().decode("utf-8")
+        raise ValueError(format_remote_error(exc.code, body)) from exc
+
+
+def format_remote_error(status_code: int, body: str) -> str:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return f"remote API returned HTTP {status_code}: {body}"
+
+    detail = payload.get("detail") if isinstance(payload, dict) else payload
+    if isinstance(detail, str):
+        return f"remote API returned HTTP {status_code}: {detail}"
+    if isinstance(detail, list):
+        return format_error_lines(status_code, "request failed", detail)
+    if not isinstance(detail, dict):
+        return f"remote API returned HTTP {status_code}: {json.dumps(payload)}"
+
+    message = detail.get("message") or "request failed"
+    errors = detail.get("errors") if isinstance(detail.get("errors"), list) else []
+    return format_error_lines(status_code, message, errors)
+
+
+def format_error_lines(status_code: int, message: str, errors: list[Any]) -> str:
+    lines = [f"remote API returned HTTP {status_code}: {message}"]
+    for item in errors:
+        if not isinstance(item, dict):
+            continue
+        location = format_error_location(item.get("loc"))
+        error_message = item.get("message") or item.get("msg") or "validation error"
+        prefix = f"{location}: " if location else ""
+        lines.append(f"- {prefix}{error_message}")
+    return "\n".join(lines)
+
+
+def format_error_location(loc: Any) -> str:
+    if not isinstance(loc, list | tuple):
+        return ""
+    parts = [str(part) for part in loc if part is not None]
+    return ".".join(parts)
 
 
 if __name__ == "__main__":

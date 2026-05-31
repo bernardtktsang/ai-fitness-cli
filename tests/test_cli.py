@@ -132,6 +132,88 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["as_of"], "2026-05-16")
         self.assertEqual(payload["args"]["format"], "json")
 
+    def test_meals_save_accepts_shared_file_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            meal_file = Path(temp_dir) / "meal.json"
+            meal_file.write_text('{"meal_type": "lunch"}')
+            with mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(["meals", "save", "--file", str(meal_file), "--json"])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "meals.save")
+        self.assertEqual(payload["args"]["meal_json"], '{"meal_type": "lunch"}')
+        self.assertIsNone(payload["args"]["meal_file"])
+
+    def test_meals_update_accepts_shared_file_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            meal_file = Path(temp_dir) / "meal.json"
+            meal_file.write_text('{"status": "confirmed"}')
+            with mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(
+                    ["meals", "update", "--meal-id", "meal-1", "--file", str(meal_file), "--json"]
+                )
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "meals.update")
+        self.assertEqual(payload["args"]["meal_update_json"], '{"status": "confirmed"}')
+        self.assertIsNone(payload["args"]["meal_update_file"])
+
+    def test_remote_error_formats_structured_backend_validation_details(self) -> None:
+        body = json.dumps(
+            {
+                "detail": {
+                    "message": "agent command validation failed",
+                    "errors": [
+                        {
+                            "loc": ["args", "meal_json", "name"],
+                            "message": (
+                                "Found unsupported key 'name' at meal level; "
+                                "did you mean 'meal_type'?"
+                            ),
+                            "suggestion": "meal_type",
+                        }
+                    ],
+                }
+            }
+        )
+
+        self.assertEqual(
+            cli.format_remote_error(400, body),
+            "remote API returned HTTP 400: agent command validation failed\n"
+            "- args.meal_json.name: Found unsupported key 'name' at meal level; "
+            "did you mean 'meal_type'?",
+        )
+
+    def test_remote_error_keeps_plain_backend_detail_readable(self) -> None:
+        body = json.dumps({"detail": "unknown remote CLI command: wat"})
+
+        self.assertEqual(
+            cli.format_remote_error(400, body),
+            "remote API returned HTTP 400: unknown remote CLI command: wat",
+        )
+
     def test_admin_commands_are_not_registered(self) -> None:
         self.assertEqual(cli.main(["admin"]), 2)
 
