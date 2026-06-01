@@ -110,6 +110,11 @@ fitness progress show
 fitness targets explain
 ```
 
+For meal logging, timestamp fields are optional when the meal is being logged
+right now. For a past or specific local meal time, use `local_eaten_at` plus
+`eaten_at_timezone` in the meal JSON; use `eaten_at` only for an absolute
+timestamp with an offset.
+
 Use `fitness --help` or `fitness <command> --help` for the full command list.
 
 ## Agent Skills

@@ -13,8 +13,9 @@ Use this skill when the user wants to estimate, save, update, confirm, or review
 - Never auto-log a meal from a photo alone. A photo is not consent to save; ask or wait for an explicit logging request.
 - Present estimated totals before saving unless the user has already clearly asked you to log the meal.
 - Mark photo-based estimates as approximate and invite corrections.
-- Do not ask for the meal time when the user says they just ate it; use the current message time with timezone offset. Ask only if they ate it earlier or for a different date.
-- Use the user's timezone for `eaten_at`; include an offset such as `2026-05-23T13:10:00+08:00`.
+- Do not ask for the meal time when the user says they just ate it. Omit timestamp fields and let the backend stamp the meal at save time.
+- If the user gives a past/specific meal time, use `local_eaten_at` as a bare local datetime and include `eaten_at_timezone` when known, e.g. `"local_eaten_at": "2026-05-23T13:10:00", "eaten_at_timezone": "Asia/Hong_Kong"`.
+- Use `eaten_at` only when you already know the exact absolute timestamp with an offset.
 
 ## Analyze Input
 
@@ -96,11 +97,10 @@ Build a JSON object and save with:
 fitness meals save --file /tmp/meal.json --json
 ```
 
-Required JSON fields:
+Example JSON:
 
 ```json
 {
-  "eaten_at": "2026-05-23T13:10:00+08:00",
   "meal_type": "breakfast",
   "items": [
     {
@@ -117,6 +117,12 @@ Required JSON fields:
   "source": "photo"
 }
 ```
+
+Timestamp rules:
+
+- For "just now" meals, omit `eaten_at`, `local_eaten_at`, and `eaten_at_timezone`; the backend logs the save time in UTC.
+- For earlier/scheduled local meals, send `local_eaten_at` without an offset, plus `eaten_at_timezone` if known.
+- For externally sourced absolute times, send `eaten_at` with an offset or `Z`.
 
 Rules:
 
@@ -215,13 +221,15 @@ For meal ideas or variations, use short numbered options with ingredients and to
 
 - Do not save from a photo unless the user asked to log it.
 - Do not let a surprise image interrupt an unrelated conversation; ask what they want done with it.
-- **Timezone offsets required in JSON timestamps:** The `eaten_at` field must include a timezone offset (e.g., `2026-05-17T12:00:00+08:00` or `2026-05-17T12:00:00Z`). A bare datetime without offset causes a Pydantic validation error.
+- **Meal timestamps are optional on save:** For meals being logged right now, omit all timestamp fields and let the backend stamp the save time.
+- **Use local meal time for past/specified meals:** Use `local_eaten_at` as a bare datetime such as `2026-05-17T19:00:00` and `eaten_at_timezone` such as `Asia/Hong_Kong`. Do not put an offset on `local_eaten_at`.
+- **Absolute timestamps still need offsets:** If using `eaten_at`, include an offset such as `2026-05-17T12:00:00+08:00` or `2026-05-17T12:00:00Z`.
 - **Meal item field `quantity` is rejected:** Do not include `quantity` in meal items. Use `portion_description` (optional string) instead, but the most reliable approach is to encode portion info directly in the item `name` (e.g., "Hash brown (half)").
 - **No nested macro/nutrient objects:** Do not send `macros`, `nutrients`, `nutrition`, or similar nested objects. The backend accepts flat keys only and will reject unknown keys.
 - **Calorie key difference:** Use `calories` inside each item, but `total_calories` on the meal itself. Do not use meal-level `calories` or item-level `total_calories`.
-- **Meal JSON timestamp field:** Use `eaten_at` (ISO 8601 with timezone offset), not `logged_at`. The CLI requires `eaten_at` for meal saves/updates.
+- **Meal JSON timestamp fields:** Use `local_eaten_at` for local wall-clock meal times, `eaten_at` only for absolute timestamps, and never use `logged_at`.
 - **Date arguments:** Most commands use `--start` and `--end` (not `--start-date`). Example: `fitness meals list --start 2026-05-10 --end 2026-05-10` - using `--start-date` will fail with a missing-argument error.
-- **Assume message send time for `eaten_at`:** When the user confirms they just ate a meal (e.g., "yup," "just ate it," "just now"), do not ask what time. Use the current system time as the timestamp. Only ask for a specific time if the user says they ate it much earlier or later.
+- **Assume save time for just-now meals:** When the user confirms they just ate a meal (e.g., "yup," "just ate it," "just now"), do not ask what time and do not invent a timestamp. Only ask for a specific time if the user says they ate it much earlier or later.
 - Clarify raw vs cooked weights for meat.
 - Ask whether broth, sauces, oils, or shared portions were consumed.
 - When a user questions a total, review the calculation item by item instead of defending the estimate.

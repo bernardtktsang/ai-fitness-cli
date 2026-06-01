@@ -12,7 +12,7 @@ Use this skill as the command and schema reference for the remote-only AI Fitnes
 1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain.
 2. Use `--json` for commands whose output will be parsed programmatically.
 3. For structured writes, create a temporary JSON file and pass it with the relevant `--file` or `--*-file` flag.
-4. Use the user's local timezone when preparing dates and timestamps, and include a timezone offset for datetimes.
+4. For meals being logged right now, omit timestamp fields and let the backend stamp the save time. For past/specific local meal times, use `local_eaten_at` plus `eaten_at_timezone`; use offset datetimes for health/workout ranges and absolute meal times.
 5. After remote writes, read back the relevant resource when correctness matters.
 
 Destructive commands such as `fitness meals delete`, `fitness projections delete`, and `fitness targets schedule delete` mutate remote data. Confirm intent unless the user explicitly asked for the deletion.
@@ -114,7 +114,8 @@ Example:
 
 ```json
 {
-  "eaten_at": "2026-05-31T12:00:00+08:00",
+  "local_eaten_at": "2026-05-31T12:00:00",
+  "eaten_at_timezone": "Asia/Hong_Kong",
   "meal_type": "lunch",
   "items": [
     {
@@ -151,13 +152,17 @@ Item-level fields:
 
 Meal-level fields:
 
-- `eaten_at` (ISO 8601 datetime with offset, required)
+- `eaten_at` (ISO 8601 datetime with offset, optional absolute timestamp)
+- `local_eaten_at` (ISO 8601 datetime without offset, optional local meal time)
+- `eaten_at_timezone` (IANA timezone such as `Asia/Hong_Kong`, used with `local_eaten_at`)
 - `meal_type` (`breakfast`, `lunch`, `dinner`, or `snack`)
 - `items` (array, required)
 - `total_calories` (number, sum of item calories)
 - `notes` (string)
 - `source` (string)
 
+- If the meal is being logged right now, omit `eaten_at`, `local_eaten_at`, and `eaten_at_timezone`; the backend records the save time.
+- If the user specifies a local time, prefer `local_eaten_at` plus `eaten_at_timezone`. Do not include an offset on `local_eaten_at`.
 Do not include meal-level `name`, item-level `quantity`, nested `macros`, or nested `nutrients`; these are rejected. Put portion details in `portion_description` or encode them in the item `name`.
 
 `meals update` recalculates totals from items when item values are present. A healthy response includes:
@@ -200,7 +205,9 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 
 ## Common Pitfalls
 
-- `eaten_at`, workout range datetimes, and health sample datetimes must include an offset such as `2026-05-31T12:00:00+08:00` or `Z`.
+- Meal timestamps are optional on save; omit them for just-now meals.
+- For specified local meal times, use `local_eaten_at` without an offset and `eaten_at_timezone`; for absolute `eaten_at`, include an offset such as `2026-05-31T12:00:00+08:00` or `Z`.
+- Workout range datetimes and health sample datetimes must include an offset.
 - Use `--start` and `--end`, not `--start-date` or `--end-date`.
 - Use lowercase weekday keys such as `"monday"`, not `"1"` or `"Mon"`.
 - Use `calories` at item level and `total_calories` at meal level.

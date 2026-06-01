@@ -273,7 +273,13 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     add_common_output(list_cmd)
     set_remote(list_cmd, "meals.list")
 
-    save = nested.add_parser("save", help="Save a meal log from JSON.")
+    save = nested.add_parser(
+        "save",
+        help=(
+            "Save a meal log from JSON. Timestamp fields are optional for just-now meals; "
+            "use local_eaten_at/eaten_at_timezone for specified local meal times."
+        ),
+    )
     add_json_input(save, "meal", file_aliases=("--file",))
     add_common_output(save)
     set_remote(save, "meals.save")
