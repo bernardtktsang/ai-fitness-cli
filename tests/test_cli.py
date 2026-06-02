@@ -180,6 +180,78 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["meal_update_json"], '{"status": "confirmed"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
+    def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                cli.API_URL_ENV: "https://api.example.com",
+                cli.API_KEY_ENV: "afb_agent_secret",
+            },
+            clear=False,
+        ), mock.patch(
+            "ai_fitness_cli.cli.post_json",
+            return_value={"exit_code": 0, "stdout": ""},
+        ) as post_json:
+            result = cli.main(
+                [
+                    "foods",
+                    "search",
+                    "soba",
+                    "--limit",
+                    "12",
+                    "--entry-limit",
+                    "2",
+                    "--start",
+                    "2026-05-01",
+                    "--end",
+                    "2026-06-02",
+                    "--meal-type",
+                    "lunch",
+                    "--status",
+                    "confirmed",
+                    "--json",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "foods.search")
+        self.assertEqual(payload["args"]["query"], "soba")
+        self.assertEqual(payload["args"]["limit"], 12)
+        self.assertEqual(payload["args"]["entry_limit"], 2)
+        self.assertEqual(payload["args"]["start"], "2026-05-01")
+        self.assertEqual(payload["args"]["end"], "2026-06-02")
+        self.assertEqual(payload["args"]["meal_type"], "lunch")
+        self.assertEqual(payload["args"]["status"], "confirmed")
+        self.assertEqual(payload["args"]["format"], "json")
+
+    def test_foods_commands_remote_payloads(self) -> None:
+        cases = [
+            (["foods", "list", "--json"], "foods.list", {"limit": 50, "status": "all"}),
+            (["foods", "history", "rice", "--json"], "foods.history", {"name": "rice", "limit": 20}),
+            (["foods", "get", "rice", "--json"], "foods.get", {"name": "rice", "limit": 5}),
+        ]
+        for argv, command, expected_args in cases:
+            with self.subTest(command=command), mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(argv)
+
+            self.assertEqual(result, 0)
+            _, _, payload = post_json.call_args.args
+            self.assertEqual(payload["command"], command)
+            for key, value in expected_args.items():
+                self.assertEqual(payload["args"][key], value)
+            self.assertEqual(payload["args"]["format"], "json")
+
     def test_remote_error_formats_structured_backend_validation_details(self) -> None:
         body = json.dumps(
             {
@@ -237,6 +309,15 @@ class CliTests(unittest.TestCase):
         output = "".join(call.args[0] for call in stdout.write.call_args_list)
         self.assertIn("name: meal-logging", output)
         self.assertIn("Use this skill", output)
+
+    def test_bundled_skills_document_food_history_lookup(self) -> None:
+        cli_skill = (cli.get_skill_dir("ai-fitness-buddy-cli") / "SKILL.md").read_text()
+        meal_skill = (cli.get_skill_dir("meal-logging") / "SKILL.md").read_text()
+
+        self.assertIn("fitness foods search", cli_skill)
+        self.assertIn("fitness foods get", cli_skill)
+        self.assertIn("fitness foods search", meal_skill)
+        self.assertIn("not a generic food", meal_skill)
 
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

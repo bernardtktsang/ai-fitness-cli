@@ -105,6 +105,7 @@ fitness context brief
 fitness sync status
 fitness health summary --start 2026-05-01 --end 2026-05-16
 fitness meals list --start 2026-05-01 --end 2026-05-16
+fitness foods search rice --json
 fitness workouts list --start 2026-05-01T00:00:00+00:00 --end 2026-05-16T23:59:59+00:00
 fitness progress show
 fitness targets explain

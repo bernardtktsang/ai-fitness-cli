@@ -61,6 +61,20 @@ fitness meals delete --meal-id <uuid> --json
 
 The generated long-form file flags are also valid: `--meal-file` for `meals save` and `--meal-update-file` for `meals update`.
 
+Food history:
+
+```bash
+fitness foods search "rice" --json
+fitness foods get "soba noodles" --json
+fitness foods history "chicken breast" --json
+fitness foods list --limit 50 --json
+```
+
+Use `fitness foods search` or `fitness foods get --json` before re-estimating
+common foods when time permits. Food history returns prior logged entries from
+this user's meal history; it is not a generic food database and does not provide
+per-100g averages.
+
 Health and workouts:
 
 ```bash

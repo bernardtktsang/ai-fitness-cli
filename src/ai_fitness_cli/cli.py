@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_sync_commands(subparsers)
     add_profile_commands(subparsers)
     add_meal_commands(subparsers)
+    add_food_commands(subparsers)
     add_projection_commands(subparsers)
     add_programme_commands(subparsers)
     add_target_commands(subparsers)
@@ -294,6 +295,51 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     delete.add_argument("--meal-id", required=True)
     add_common_output(delete)
     set_remote(delete, "meals.delete")
+
+
+def add_food_filters(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--start", help="ISO start date.")
+    parser.add_argument("--end", help="ISO end date.")
+    parser.add_argument("--meal-type", choices=("breakfast", "lunch", "dinner", "snack"))
+    parser.add_argument(
+        "--status",
+        choices=("all", "confirmed", "provisional", "complete"),
+        default="all",
+        help="Meal status filter. Defaults to all.",
+    )
+
+
+def add_food_commands(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser("foods", help="Personal food history lookups.")
+    nested = parser.add_subparsers(dest="food_command", required=True)
+
+    search = nested.add_parser("search", help="Search prior logged food items.")
+    search.add_argument("query")
+    search.add_argument("--limit", type=int, default=10)
+    search.add_argument("--entry-limit", type=int, default=3)
+    add_food_filters(search)
+    add_common_output(search)
+    set_remote(search, "foods.search")
+
+    list_cmd = nested.add_parser("list", help="List unique prior logged food items.")
+    list_cmd.add_argument("--limit", type=int, default=50)
+    add_food_filters(list_cmd)
+    add_common_output(list_cmd)
+    set_remote(list_cmd, "foods.list")
+
+    history = nested.add_parser("history", help="Show capped history for one food item.")
+    history.add_argument("name")
+    history.add_argument("--limit", type=int, default=20)
+    add_food_filters(history)
+    add_common_output(history)
+    set_remote(history, "foods.history")
+
+    get = nested.add_parser("get", help="Get recent reference entries for one food item.")
+    get.add_argument("name")
+    get.add_argument("--limit", type=int, default=5)
+    add_food_filters(get)
+    add_common_output(get)
+    set_remote(get, "foods.get")
 
 
 def add_projection_commands(subparsers: argparse._SubParsersAction) -> None:

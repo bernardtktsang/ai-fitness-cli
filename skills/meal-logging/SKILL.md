@@ -44,6 +44,18 @@ Calculate each item's calories, protein, carbs, and fat. The backend validates
 meal JSON keys strictly, so use only the exact flat field names below. Do not
 send nested `macros` or `nutrients` objects.
 
+When time permits, check personal food history before re-estimating common or
+recurring foods:
+
+```bash
+fitness foods search "rice" --json
+fitness foods get "greek yogurt" --json
+```
+
+Use those results as prior logged references for this user, especially for
+usual portions and repeated home-cooked foods. They are not a generic food
+database, product-label source, or per-100g nutrition table.
+
 Item-level nutrition keys:
 
 - `calories`
