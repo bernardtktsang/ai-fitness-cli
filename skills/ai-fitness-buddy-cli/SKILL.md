@@ -142,7 +142,6 @@ Example:
       "confidence": 0.75
     }
   ],
-  "total_calories": 620,
   "notes": "estimated from user description",
   "source": "agent"
 }
@@ -151,10 +150,10 @@ Example:
 Item-level fields:
 
 - `name` (string, required)
-- `calories` (number)
-- `protein_g` (number)
-- `carbs_g` (number)
-- `fat_g` (number)
+- `calories` (number, required)
+- `protein_g` (number, required)
+- `carbs_g` (number, required)
+- `fat_g` (number, required)
 - `fiber_g` (number)
 - `sugar_g` (number)
 - `sodium_mg` (number)
@@ -171,15 +170,14 @@ Meal-level fields:
 - `eaten_at_timezone` (IANA timezone such as `Asia/Hong_Kong`, used with `local_eaten_at`)
 - `meal_type` (`breakfast`, `lunch`, `dinner`, or `snack`)
 - `items` (array, required)
-- `total_calories` (number, sum of item calories)
 - `notes` (string)
 - `source` (string)
 
 - If the meal is being logged right now, omit `eaten_at`, `local_eaten_at`, and `eaten_at_timezone`; the backend records the save time.
 - If the user specifies a local time, prefer `local_eaten_at` plus `eaten_at_timezone`. Do not include an offset on `local_eaten_at`.
-Do not include meal-level `name`, item-level `quantity`, nested `macros`, or nested `nutrients`; these are rejected. Put portion details in `portion_description` or encode them in the item `name`.
+Do not include meal-level `name`, meal-level nutrition fields such as `total_calories`/`protein_g`, item-level `quantity`, nested `macros`, or nested `nutrients`; these are rejected. Put portion details in `portion_description` or encode them in the item `name`.
 
-`meals update` recalculates totals from items when item values are present. A healthy response includes:
+When `items` is supplied to `meals update`, it must be a full replacement with complete item nutrition. A healthy response includes:
 
 ```json
 "nutrition_integrity": {

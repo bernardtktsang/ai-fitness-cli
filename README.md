@@ -118,6 +118,23 @@ timestamp with an offset.
 
 Use `fitness --help` or `fitness <command> --help` for the full command list.
 
+
+## Update Log
+
+Keep this section updated whenever CLI behavior, bundled skills, examples, or
+backend-facing command contracts change.
+
+### 2026-06-05 - Strict itemized meal writes
+
+- Updated meal logging guidance so `meals save` and item-replacement
+  `meals update` use complete item-level nutrition.
+- Agents should send `items` with `calories`, `protein_g`, `carbs_g`, and
+  `fat_g` on each item.
+- Agents should not send meal-level nutrition fields such as `calories`,
+  `total_calories`, `protein_g`, `carbs_g`, or `fat_g`.
+- Updated bundled meal logging skills and CLI test fixtures to match the new
+  backend write contract.
+
 ## Agent Skills
 
 The CLI includes optional skill folders for agents. List them with:

@@ -135,7 +135,7 @@ class CliTests(unittest.TestCase):
     def test_meals_save_accepts_shared_file_alias(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             meal_file = Path(temp_dir) / "meal.json"
-            meal_file.write_text('{"meal_type": "lunch"}')
+            meal_file.write_text('{"meal_type": "lunch", "items": [{"name": "Lunch estimate", "calories": 600, "protein_g": 30, "carbs_g": 60, "fat_g": 20}]}')
             with mock.patch.dict(
                 os.environ,
                 {
@@ -152,7 +152,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         _, _, payload = post_json.call_args.args
         self.assertEqual(payload["command"], "meals.save")
-        self.assertEqual(payload["args"]["meal_json"], '{"meal_type": "lunch"}')
+        self.assertEqual(
+            payload["args"]["meal_json"],
+            '{"meal_type": "lunch", "items": [{"name": "Lunch estimate", "calories": 600, "protein_g": 30, "carbs_g": 60, "fat_g": 20}]}',
+        )
         self.assertIsNone(payload["args"]["meal_file"])
 
     def test_meals_update_accepts_shared_file_alias(self) -> None:
