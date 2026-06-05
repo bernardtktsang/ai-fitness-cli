@@ -28,6 +28,7 @@ packages = ["src/ai_fitness_cli"]
 include = [
   "/src",
   "/skills",
+  "/docs",
   "/tests",
   "/README.md",
   "/LICENSE",

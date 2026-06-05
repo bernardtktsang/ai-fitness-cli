@@ -7,6 +7,9 @@ The `fitness` command lets an agent read and write fitness data through the
 hosted AI Fitness Buddy API without seeing your API key. You run `fitness login`
 yourself; your agent runs normal shell commands after that.
 
+For the durable operating workflow after setup, read
+[docs/byo-agent-operator-guide.md](docs/byo-agent-operator-guide.md).
+
 ## Quick Start
 
 ### Give This To Your Agent
@@ -40,6 +43,9 @@ fitness skills export --dest <your-skill-repository-path> --force
 
 If you do not have a skill repository, read each listed skill directly:
 fitness skills show <skill-name>
+
+After setup, use this operator guide for the day-to-day agent workflow:
+https://github.com/bernardtktsang/ai-fitness-cli/blob/main/docs/byo-agent-operator-guide.md
 ```
 
 ### Manual Setup
