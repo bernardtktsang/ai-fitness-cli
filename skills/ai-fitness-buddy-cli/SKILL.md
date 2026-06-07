@@ -12,7 +12,7 @@ Use this skill as the command and schema reference for the remote-only AI Fitnes
 1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain.
 2. Use `--json` for commands whose output will be parsed programmatically.
 3. For structured writes, create a temporary JSON file and pass it with the relevant `--file` or `--*-file` flag.
-4. For meals being logged right now, omit timestamp fields and let the backend stamp the save time. For past/specific local meal times, use `local_eaten_at` plus `eaten_at_timezone`; use offset datetimes for health/workout ranges and absolute meal times.
+4. For meals being logged right now, omit `eaten_at` and let the backend stamp the save time. For past/specific local meal times, use local `eaten_at` plus `timezone`; offset-only datetimes are accepted, but do not combine offsets with `timezone`.
 5. After remote writes, read back the relevant resource when correctness matters.
 
 Destructive commands such as `fitness meals delete`, `fitness projections delete`, and `fitness targets schedule delete` mutate remote data. Confirm intent unless the user explicitly asked for the deletion.
@@ -128,8 +128,8 @@ Example:
 
 ```json
 {
-  "local_eaten_at": "2026-05-31T12:00:00",
-  "eaten_at_timezone": "Asia/Hong_Kong",
+  "eaten_at": "2026-05-31T12:00:00",
+  "timezone": "Asia/Hong_Kong",
   "meal_type": "lunch",
   "items": [
     {
@@ -165,16 +165,15 @@ Item-level fields:
 
 Meal-level fields:
 
-- `eaten_at` (ISO 8601 datetime with offset, optional absolute timestamp)
-- `local_eaten_at` (ISO 8601 datetime without offset, optional local meal time)
-- `eaten_at_timezone` (IANA timezone such as `Asia/Hong_Kong`, used with `local_eaten_at`)
+- `eaten_at` (ISO 8601 datetime, optional local meal time when paired with `timezone`; offset-only absolute timestamp when `timezone` is omitted)
+- `timezone` (IANA timezone such as `Asia/Hong_Kong`, used to interpret naive `eaten_at`)
 - `meal_type` (`breakfast`, `lunch`, `dinner`, or `snack`)
 - `items` (array, required)
 - `notes` (string)
 - `source` (string)
 
-- If the meal is being logged right now, omit `eaten_at`, `local_eaten_at`, and `eaten_at_timezone`; the backend records the save time.
-- If the user specifies a local time, prefer `local_eaten_at` plus `eaten_at_timezone`. Do not include an offset on `local_eaten_at`.
+- If the meal is being logged right now, omit `eaten_at`; the backend records the save time.
+- If the user specifies a local time, prefer `eaten_at` plus `timezone`. Do not include an offset when `timezone` is present.
 Do not include meal-level `name`, meal-level nutrition fields such as `total_calories`/`protein_g`, item-level `quantity`, nested `macros`, or nested `nutrients`; these are rejected. Put portion details in `portion_description` or encode them in the item `name`.
 
 When `items` is supplied to `meals update`, it must be a full replacement with complete item nutrition. A healthy response includes:
@@ -218,13 +217,13 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 ## Common Pitfalls
 
 - Meal timestamps are optional on save; omit them for just-now meals.
-- For specified local meal times, use `local_eaten_at` without an offset and `eaten_at_timezone`; for absolute `eaten_at`, include an offset such as `2026-05-31T12:00:00+08:00` or `Z`.
-- Workout range datetimes and health sample datetimes must include an offset.
+- For specified local meal times, use `eaten_at` without an offset plus `timezone`; for absolute `eaten_at`, include an offset such as `2026-05-31T12:00:00+08:00` or `Z` and omit `timezone`.
+- Workout and health range datetimes may be date-only, naive local datetimes, or offset-only absolute datetimes; do not combine offsets with `--timezone`.
 - Use `--start` and `--end`, not `--start-date` or `--end-date`.
 - Use lowercase weekday keys such as `"monday"`, not `"1"` or `"Mon"`.
 - Use `calories` at item level and `total_calories` at meal level.
 - Use confidence as a float such as `0.6`, not a label such as `"medium"`.
-- All timestamps are stored in UTC remotely; adjust for the user's local timezone when reading.
+- Agent-facing output already uses local datetime fields plus `timezone`; do not reinterpret them as UTC.
 - Always pass `--json` when parsing command output.
 
 ## Known Limitations

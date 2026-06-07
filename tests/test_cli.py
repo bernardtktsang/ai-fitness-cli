@@ -132,6 +132,34 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["as_of"], "2026-05-16")
         self.assertEqual(payload["args"]["format"], "json")
 
+    def test_timezone_override_is_forwarded_to_remote_command(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                cli.API_URL_ENV: "https://api.example.com",
+                cli.API_KEY_ENV: "afb_agent_secret",
+            },
+            clear=False,
+        ), mock.patch(
+            "ai_fitness_cli.cli.post_json",
+            return_value={"exit_code": 0, "stdout": "ok\n"},
+        ) as post_json:
+            result = cli.main([
+                "meals",
+                "list",
+                "--start",
+                "2026-06-01",
+                "--end",
+                "2026-06-06",
+                "--timezone",
+                "Asia/Hong_Kong",
+            ])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "meals.list")
+        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
+
     def test_meals_save_accepts_shared_file_alias(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             meal_file = Path(temp_dir) / "meal.json"

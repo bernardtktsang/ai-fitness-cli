@@ -112,15 +112,14 @@ fitness sync status
 fitness health summary --start 2026-05-01 --end 2026-05-16
 fitness meals list --start 2026-05-01 --end 2026-05-16
 fitness foods search rice --json
-fitness workouts list --start 2026-05-01T00:00:00+00:00 --end 2026-05-16T23:59:59+00:00
+fitness workouts list --start 2026-05-01 --end 2026-05-16
 fitness progress show
 fitness targets explain
 ```
 
-For meal logging, timestamp fields are optional when the meal is being logged
-right now. For a past or specific local meal time, use `local_eaten_at` plus
-`eaten_at_timezone` in the meal JSON; use `eaten_at` only for an absolute
-timestamp with an offset.
+For meal logging, omit `eaten_at` when the meal is being logged right now. For a past or specific local meal time, use `eaten_at` as a local naive datetime plus `timezone`, for example `{"eaten_at": "2026-06-06T19:30:00", "timezone": "Asia/Hong_Kong"}`. Offset-only `eaten_at` is accepted, but do not combine an offset datetime with `timezone`.
+
+CLI date/datetime input uses the backend user timezone by default when no offset is supplied. Supported timestamped commands also accept `--timezone IANA/Name` as an input/display override, for example `fitness workouts list --start 2026-05-01 --end 2026-05-16 --timezone Asia/Hong_Kong`. Do not combine offset datetimes with an explicit timezone.
 
 Use `fitness --help` or `fitness <command> --help` for the full command list.
 

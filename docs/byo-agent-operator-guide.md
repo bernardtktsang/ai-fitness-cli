@@ -124,13 +124,13 @@ Save with:
 fitness meals save --file /tmp/meal.json --json
 ```
 
-For a past or specific local meal time, use `local_eaten_at` without an offset
-plus `eaten_at_timezone`:
+For a past or specific local meal time, use `eaten_at` without an offset
+plus `timezone`:
 
 ```json
 {
-  "local_eaten_at": "2026-06-05T13:10:00",
-  "eaten_at_timezone": "Asia/Hong_Kong",
+  "eaten_at": "2026-06-05T13:10:00",
+  "timezone": "Asia/Hong_Kong",
   "meal_type": "lunch",
   "items": [
     {
@@ -393,8 +393,8 @@ Never ask me to paste API keys or secrets into chat. If login is needed, ask me
 to run `fitness login` myself. Do not print secret environment variables.
 
 For meals, do not log from a photo unless I ask you to log it or confirm the
-estimate. For meals I am logging right now, omit timestamp fields. For past
-local meal times, use `local_eaten_at` and `eaten_at_timezone`.
+estimate. For meals I am logging right now, omit `eaten_at`. For past local
+meal times, use local `eaten_at` and `timezone`.
 
 For writes, use temporary JSON files and verify important changes by reading
 them back. Confirm destructive deletes unless I explicitly asked for the exact

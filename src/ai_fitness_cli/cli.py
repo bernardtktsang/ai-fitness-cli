@@ -77,6 +77,13 @@ def add_common_output(parser: argparse.ArgumentParser) -> None:
     )
 
 
+
+def add_timezone_override(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--timezone",
+        help="IANA timezone for naive input interpretation and text display, e.g. Asia/Hong_Kong.",
+    )
+
 def add_json_input(
     parser: argparse.ArgumentParser,
     name: str,
@@ -204,17 +211,19 @@ def add_health_commands(subparsers: argparse._SubParsersAction) -> None:
 
     samples = nested.add_parser("samples", help="Granular health samples.")
     samples.add_argument("--metrics", required=True, help="Comma-separated metric names.")
-    samples.add_argument("--start", required=True, help="ISO start datetime with timezone offset.")
-    samples.add_argument("--end", required=True, help="ISO end datetime with timezone offset.")
+    samples.add_argument("--start", required=True, help="ISO start date/datetime. Naive values use the user timezone.")
+    samples.add_argument("--end", required=True, help="ISO end date/datetime. Naive values use the user timezone.")
     samples.add_argument("--limit", type=int, default=100)
+    add_timezone_override(samples)
     add_common_output(samples)
     set_remote(samples, "health.samples")
 
     body = nested.add_parser("body", help="Body composition measurements.")
     body.add_argument("--metrics", help="Comma-separated body metric names.")
-    body.add_argument("--start", help="ISO start datetime with timezone offset.")
-    body.add_argument("--end", help="ISO end datetime with timezone offset.")
+    body.add_argument("--start", help="ISO start date/datetime. Naive values use the user timezone.")
+    body.add_argument("--end", help="ISO end date/datetime. Naive values use the user timezone.")
     body.add_argument("--limit", type=int, default=100)
+    add_timezone_override(body)
     add_common_output(body)
     set_remote(body, "health.body")
 
@@ -228,9 +237,10 @@ def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("workouts", help="Workout reads.")
     nested = parser.add_subparsers(dest="workout_command", required=True)
     list_cmd = nested.add_parser("list", help="List workouts in a time range.")
-    list_cmd.add_argument("--start", required=True, help="ISO start datetime with timezone offset.")
-    list_cmd.add_argument("--end", required=True, help="ISO end datetime with timezone offset.")
+    list_cmd.add_argument("--start", required=True, help="ISO start date/datetime. Naive values use the user timezone.")
+    list_cmd.add_argument("--end", required=True, help="ISO end date/datetime. Naive values use the user timezone.")
     list_cmd.add_argument("--limit", type=int, default=100)
+    add_timezone_override(list_cmd)
     add_common_output(list_cmd)
     set_remote(list_cmd, "workouts.list")
 
@@ -240,6 +250,7 @@ def add_sync_commands(subparsers: argparse._SubParsersAction) -> None:
     nested = parser.add_subparsers(dest="sync_command", required=True)
     status = nested.add_parser("status", help="Show health data sync status.")
     status.add_argument("--stale-after-hours", type=int, default=24)
+    add_timezone_override(status)
     add_common_output(status)
     set_remote(status, "sync.status")
 
@@ -264,6 +275,7 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     summary = nested.add_parser("summary", help="Daily nutrition totals.")
     summary.add_argument("--start", required=True, help="ISO start date.")
     summary.add_argument("--end", required=True, help="ISO end date.")
+    add_timezone_override(summary)
     add_common_output(summary)
     set_remote(summary, "meals.summary")
 
@@ -271,23 +283,26 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     list_cmd.add_argument("--start", required=True, help="ISO start date.")
     list_cmd.add_argument("--end", required=True, help="ISO end date.")
     list_cmd.add_argument("--limit", type=int, default=50)
+    add_timezone_override(list_cmd)
     add_common_output(list_cmd)
     set_remote(list_cmd, "meals.list")
 
     save = nested.add_parser(
         "save",
         help=(
-            "Save a meal log from JSON. Timestamp fields are optional for just-now meals; "
-            "use local_eaten_at/eaten_at_timezone for specified local meal times."
+            "Save a meal log from JSON. Omit eaten_at for just-now meals; "
+            "use eaten_at plus timezone for specified local meal times."
         ),
     )
     add_json_input(save, "meal", file_aliases=("--file",))
+    add_timezone_override(save)
     add_common_output(save)
     set_remote(save, "meals.save")
 
     update = nested.add_parser("update", help="Update a meal log from JSON.")
     update.add_argument("--meal-id", required=True)
     add_json_input(update, "meal_update", file_aliases=("--file",))
+    add_timezone_override(update)
     add_common_output(update)
     set_remote(update, "meals.update")
 
@@ -318,12 +333,14 @@ def add_food_commands(subparsers: argparse._SubParsersAction) -> None:
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--entry-limit", type=int, default=3)
     add_food_filters(search)
+    add_timezone_override(search)
     add_common_output(search)
     set_remote(search, "foods.search")
 
     list_cmd = nested.add_parser("list", help="List unique prior logged food items.")
     list_cmd.add_argument("--limit", type=int, default=50)
     add_food_filters(list_cmd)
+    add_timezone_override(list_cmd)
     add_common_output(list_cmd)
     set_remote(list_cmd, "foods.list")
 
@@ -331,6 +348,7 @@ def add_food_commands(subparsers: argparse._SubParsersAction) -> None:
     history.add_argument("name")
     history.add_argument("--limit", type=int, default=20)
     add_food_filters(history)
+    add_timezone_override(history)
     add_common_output(history)
     set_remote(history, "foods.history")
 
@@ -338,6 +356,7 @@ def add_food_commands(subparsers: argparse._SubParsersAction) -> None:
     get.add_argument("name")
     get.add_argument("--limit", type=int, default=5)
     add_food_filters(get)
+    add_timezone_override(get)
     add_common_output(get)
     set_remote(get, "foods.get")
 
@@ -495,7 +514,7 @@ def add_recommendation_commands(subparsers: argparse._SubParsersAction) -> None:
     write.add_argument("--title")
     write.add_argument("--priority", default="normal")
     write.add_argument("--recommendation-date", help="ISO date.")
-    write.add_argument("--valid-until", help="ISO datetime with timezone offset.")
+    write.add_argument("--valid-until", help="ISO datetime. Naive values use the user timezone.")
     write.add_argument("--agent-run-id")
     add_json_input(write, "payload", required=False)
     add_common_output(write)
@@ -511,7 +530,7 @@ def add_dashboard_commands(subparsers: argparse._SubParsersAction) -> None:
     set_cmd.add_argument("--today", required=True, help="Comma-separated metric keys.")
     set_cmd.add_argument("--week", required=True, help="Comma-separated metric keys.")
     set_cmd.add_argument("--updated-by", default="agent")
-    set_cmd.add_argument("--updated-at", help="ISO datetime with timezone offset.")
+    set_cmd.add_argument("--updated-at", help="ISO datetime. Naive values use the user timezone.")
     add_common_output(set_cmd)
     set_remote(set_cmd, "dashboard.metrics.set")
 
