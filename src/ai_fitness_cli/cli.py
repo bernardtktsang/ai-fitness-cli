@@ -316,12 +316,6 @@ def add_food_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--start", help="ISO start date.")
     parser.add_argument("--end", help="ISO end date.")
     parser.add_argument("--meal-type", choices=("breakfast", "lunch", "dinner", "snack"))
-    parser.add_argument(
-        "--status",
-        choices=("all", "confirmed", "provisional", "complete"),
-        default="all",
-        help="Meal status filter. Defaults to all.",
-    )
 
 
 def add_food_commands(subparsers: argparse._SubParsersAction) -> None:

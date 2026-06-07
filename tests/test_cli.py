@@ -189,7 +189,7 @@ class CliTests(unittest.TestCase):
     def test_meals_update_accepts_shared_file_alias(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             meal_file = Path(temp_dir) / "meal.json"
-            meal_file.write_text('{"status": "confirmed"}')
+            meal_file.write_text('{"notes": "corrected estimate"}')
             with mock.patch.dict(
                 os.environ,
                 {
@@ -208,7 +208,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         _, _, payload = post_json.call_args.args
         self.assertEqual(payload["command"], "meals.update")
-        self.assertEqual(payload["args"]["meal_update_json"], '{"status": "confirmed"}')
+        self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
     def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
@@ -238,8 +238,6 @@ class CliTests(unittest.TestCase):
                     "2026-06-02",
                     "--meal-type",
                     "lunch",
-                    "--status",
-                    "confirmed",
                     "--json",
                 ]
             )
@@ -253,12 +251,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["start"], "2026-05-01")
         self.assertEqual(payload["args"]["end"], "2026-06-02")
         self.assertEqual(payload["args"]["meal_type"], "lunch")
-        self.assertEqual(payload["args"]["status"], "confirmed")
+        self.assertNotIn("status", payload["args"])
         self.assertEqual(payload["args"]["format"], "json")
 
     def test_foods_commands_remote_payloads(self) -> None:
         cases = [
-            (["foods", "list", "--json"], "foods.list", {"limit": 50, "status": "all"}),
+            (["foods", "list", "--json"], "foods.list", {"limit": 50}),
             (["foods", "history", "rice", "--json"], "foods.history", {"name": "rice", "limit": 20}),
             (["foods", "get", "rice", "--json"], "foods.get", {"name": "rice", "limit": 5}),
         ]

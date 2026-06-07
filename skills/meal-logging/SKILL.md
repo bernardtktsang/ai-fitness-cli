@@ -1,11 +1,11 @@
 ---
 name: meal-logging
-description: Log, update, and review meals with the AI Fitness CLI from food photos, text descriptions, voice corrections, or nutrition labels. Use when a user wants nutrition estimates saved, corrected, confirmed, or compared against daily targets.
+description: Log, update, and review meals with the AI Fitness CLI from food photos, text descriptions, voice corrections, or nutrition labels. Use when a user wants nutrition estimates saved, corrected, or compared against daily targets.
 ---
 
 # Meal Logging
 
-Use this skill when the user wants to estimate, save, update, confirm, or review meal logs through the `fitness` CLI.
+Use this skill when the user wants to estimate, save, update, or review meal logs through the `fitness` CLI.
 
 ## Ground Rules
 
@@ -137,7 +137,7 @@ For corrections, rebuild the full updated meal payload and call:
 fitness meals update --meal-id <meal_id> --file /tmp/meal.json --json
 ```
 
-Use the same meal when the user adds items after confirming or correcting a meal. Do not create a new meal for each addition unless the user clearly starts a separate meal.
+Use the same meal when the user adds items after saving or correcting a meal. Do not create a new meal for each addition unless the user clearly starts a separate meal.
 
 When the user says "half a banana", "only one slice", or similar, apply the correction directly, recalculate totals, update the log, and present the new numbers.
 
@@ -164,25 +164,6 @@ When `item_total_mismatch` is `false` and `total_calories_source` is `"item_sum"
 - The generated long-form flags are `--meal-file` for save and `--meal-update-file` for update.
 
 Prefer `--file` unless you specifically need the long-form flag.
-
-## Confirm A Meal
-
-Confirmation signals include "yes", "confirm", "save it", "about right", and similar acceptance.
-
-After confirmation, update the meal status:
-
-```bash
-fitness meals update --meal-id <meal_id> --file /tmp/meal-confirmed.json --json
-```
-
-The update payload should include the current full meal data plus:
-
-```json
-{
-  "status": "confirmed",
-  "confirmed_by_user": true
-}
-```
 
 ## Daily Context
 
