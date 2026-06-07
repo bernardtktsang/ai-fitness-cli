@@ -14,6 +14,7 @@ Use this skill when the user wants to estimate, save, update, or review meal log
 - Mark uncertain photo-based estimates as approximate in `notes` and invite corrections after saving.
 - Do not ask for the meal time when the user says they just ate it. Omit timestamp fields and let the backend stamp the meal at save time.
 - If the user gives a past/specific meal time, use `eaten_at` as a bare local datetime and include `timezone` when known, e.g. `"eaten_at": "2026-05-23T13:10:00", "timezone": "Asia/Hong_Kong"`.
+- If `eaten_at` is a bare local datetime and `timezone` is omitted, the backend uses the user profile timezone.
 - Offset-only `eaten_at` is accepted for exact absolute timestamps, but never combine an offset datetime with `timezone`.
 
 ## Analyze Input
@@ -117,6 +118,7 @@ Timestamp rules:
 
 - For "just now" meals, omit `eaten_at`; the backend logs the save time using the user timezone for agent-facing output.
 - For earlier/scheduled local meals, send `eaten_at` without an offset, plus `timezone` if known.
+- If `timezone` is omitted for a bare local `eaten_at`, the backend uses the user profile timezone.
 - For externally sourced absolute times, send offset-only `eaten_at` with no `timezone`.
 
 Rules:
@@ -197,6 +199,7 @@ For meal ideas or variations, use short numbered options with ingredients and to
 - If an image appears in a clearly unrelated conversation, briefly infer whether it is a meal-log request from context before asking what to do.
 - **Meal timestamps are optional on save:** For meals being logged right now, omit all timestamp fields and let the backend stamp the save time.
 - **Use local meal time for past/specified meals:** Use `eaten_at` as a bare datetime such as `2026-05-17T19:00:00` and `timezone` such as `Asia/Hong_Kong`.
+- **Bare local time fallback:** If `eaten_at` is a bare local datetime and `timezone` is omitted, the backend uses the user profile timezone.
 - **Absolute timestamps may use offsets:** Offset-only `eaten_at` such as `2026-05-17T12:00:00+08:00` or `2026-05-17T12:00:00Z` is accepted, but do not include `timezone` with it.
 - **Meal item field `quantity` is rejected:** Do not include `quantity` in meal items. Use `portion_description` (optional string) instead, but the most reliable approach is to encode portion info directly in the item `name` (e.g., "Hash brown (half)").
 - **No nested macro/nutrient objects:** Do not send `macros`, `nutrients`, `nutrition`, or similar nested objects. The backend accepts flat keys only and will reject unknown keys.
