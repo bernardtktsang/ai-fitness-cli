@@ -10,9 +10,8 @@ Use this skill when the user wants to estimate, save, update, or review meal log
 ## Ground Rules
 
 - Use the CLI for meal reads and writes. Run `fitness doctor` if setup is uncertain.
-- Never auto-log a meal from a photo alone. A photo is not consent to save; ask or wait for an explicit logging request.
-- Present estimated totals before saving unless the user has already clearly asked you to log the meal.
-- Mark photo-based estimates as approximate and invite corrections.
+- If the user sends a meal photo or meal description in a meal-logging context, estimate and save it directly. Treat corrections afterward as normal updates.
+- Mark uncertain photo-based estimates as approximate in `notes` and invite corrections after saving.
 - Do not ask for the meal time when the user says they just ate it. Omit timestamp fields and let the backend stamp the meal at save time.
 - If the user gives a past/specific meal time, use `eaten_at` as a bare local datetime and include `timezone` when known, e.g. `"eaten_at": "2026-05-23T13:10:00", "timezone": "Asia/Hong_Kong"`.
 - Offset-only `eaten_at` is accepted for exact absolute timestamps, but never combine an offset datetime with `timezone`.
@@ -24,12 +23,12 @@ Photo:
 - Identify every visible item.
 - Estimate portions using scale references such as fork, spoon, mug, hand, plate rim, or container size.
 - Be conservative with styled overhead photos, which often make portions look larger.
-- Ask clarifying questions for hidden ingredients, cooking oil, sauces, broth, shared dishes, or unclear portion size.
+- If hidden ingredients, oil, sauces, broth, shared dishes, or portion size are unclear, make a reasonable estimate and note the uncertainty. Ask only when the missing detail would materially change the log and cannot be reasonably estimated.
 
 Text or voice:
 
 - Parse the meal item by item.
-- Ask for missing high-impact details: cooked vs raw weight, portion count, oil/butter, broth consumed, sauce amount, drink size, or brand.
+- Estimate missing details such as cooked vs raw weight, portion count, oil/butter, broth consumed, sauce amount, drink size, or brand when context is sufficient. Ask only for details that would materially change the log.
 - Treat direct corrections as authoritative and update the same meal.
 
 Nutrition label:
@@ -194,8 +193,8 @@ For meal ideas or variations, use short numbered options with ingredients and to
 
 ## Common Pitfalls
 
-- Do not save from a photo unless the user asked to log it.
-- Do not let a surprise image interrupt an unrelated conversation; ask what they want done with it.
+- In meal-logging contexts, do not block on confirmation before saving a photo-based estimate; save with uncertainty in `notes` and correct afterward if needed.
+- If an image appears in a clearly unrelated conversation, briefly infer whether it is a meal-log request from context before asking what to do.
 - **Meal timestamps are optional on save:** For meals being logged right now, omit all timestamp fields and let the backend stamp the save time.
 - **Use local meal time for past/specified meals:** Use `eaten_at` as a bare datetime such as `2026-05-17T19:00:00` and `timezone` such as `Asia/Hong_Kong`.
 - **Absolute timestamps may use offsets:** Offset-only `eaten_at` such as `2026-05-17T12:00:00+08:00` or `2026-05-17T12:00:00Z` is accepted, but do not include `timezone` with it.
@@ -205,7 +204,7 @@ For meal ideas or variations, use short numbered options with ingredients and to
 - **Meal JSON timestamp fields:** Use `eaten_at` for local wall-clock meal times and include `timezone`; never use `local_eaten_at`, `eaten_at_timezone`, or `logged_at`.
 - **Date arguments:** Most commands use `--start` and `--end` (not `--start-date`). Example: `fitness meals list --start 2026-05-10 --end 2026-05-10` - using `--start-date` will fail with a missing-argument error.
 - **Assume save time for just-now meals:** When the user confirms they just ate a meal (e.g., "yup," "just ate it," "just now"), do not ask what time and do not invent a timestamp. Only ask for a specific time if the user says they ate it much earlier or later.
-- Clarify raw vs cooked weights for meat.
-- Ask whether broth, sauces, oils, or shared portions were consumed.
+- Estimate raw vs cooked weights for meat when not specified, and note the assumption.
+- Estimate broth, sauces, oils, or shared portions when not specified, and note the assumption.
 - When a user questions a total, review the calculation item by item instead of defending the estimate.
 - Expect multiple correction rounds for restaurant meals, hot pot, noodle soup, buffets, and family-style dishes.
