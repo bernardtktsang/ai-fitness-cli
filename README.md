@@ -129,6 +129,16 @@ Use `fitness --help` or `fitness <command> --help` for the full command list.
 Keep this section updated whenever CLI behavior, bundled skills, examples, or
 backend-facing command contracts change.
 
+### 2026-06-20 - Coaching best-practices skill
+
+- Added the bundled `coaching-best-practices` skill: summarize progress and
+  encourage when on track (reusing the enriched `fitness context brief`), propose
+  habit stacking at plan setup, and ask the user their self-chosen reward.
+- The skill reuses existing allowlisted `fitness` commands and adds no new tool
+  surface; reward and habit-stack choices are unstructured agent-memory context,
+  not backend writes.
+- Updated the operator guide skill list and CLI tests to cover the new skill.
+
 ### 2026-06-05 - Strict itemized meal writes
 
 - Updated meal logging guidance so `meals save` and item-replacement
