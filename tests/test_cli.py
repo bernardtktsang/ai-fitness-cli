@@ -211,6 +211,64 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
+    def test_workouts_save_maps_json_body_to_remote_command(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                cli.API_URL_ENV: "https://api.example.com",
+                cli.API_KEY_ENV: "afb_agent_secret",
+            },
+            clear=False,
+        ), mock.patch(
+            "ai_fitness_cli.cli.post_json",
+            return_value={"exit_code": 0, "stdout": ""},
+        ) as post_json:
+            result = cli.main([
+                "workouts",
+                "save",
+                "--workout-json",
+                '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
+                "--timezone",
+                "Asia/Hong_Kong",
+            ])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "workouts.save")
+        self.assertEqual(
+            payload["args"]["workout_json"],
+            '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
+        )
+        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
+
+    def test_workouts_save_accepts_shared_file_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workout_file = Path(temp_dir) / "workout.json"
+            workout_file.write_text(
+                '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}'
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(["workouts", "save", "--file", str(workout_file), "--json"])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "workouts.save")
+        self.assertEqual(
+            payload["args"]["workout_json"],
+            '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}',
+        )
+        self.assertIsNone(payload["args"]["workout_file"])
+
     def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
         with mock.patch.dict(
             os.environ,
@@ -370,6 +428,12 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness foods get", cli_skill)
         self.assertIn("fitness foods search", meal_skill)
         self.assertIn("not a generic food", meal_skill)
+
+    def test_program_design_skill_documents_workout_write(self) -> None:
+        program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
+
+        self.assertIn("fitness workouts save", program_skill)
+        self.assertIn("set server-side", program_skill)
 
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

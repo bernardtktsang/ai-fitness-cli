@@ -113,6 +113,7 @@ fitness health summary --start 2026-05-01 --end 2026-05-16
 fitness meals list --start 2026-05-01 --end 2026-05-16
 fitness foods search rice --json
 fitness workouts list --start 2026-05-01 --end 2026-05-16
+fitness workouts save --file /tmp/workout.json --json
 fitness progress show
 fitness targets explain
 ```
@@ -128,6 +129,18 @@ Use `fitness --help` or `fitness <command> --help` for the full command list.
 
 Keep this section updated whenever CLI behavior, bundled skills, examples, or
 backend-facing command contracts change.
+
+### 2026-06-20 - Agent workout write
+
+- Added `fitness workouts save`, mapping to the backend `workouts.save` agent
+  command for agent-logged workouts (insert-only).
+- The JSON body takes `workout_type`, `start_time`, and `end_time` (required)
+  plus optional duration, energy, distance, heart-rate, and `notes` fields.
+  Timestamps follow the `meals save` rule; do not combine an offset with
+  `--timezone`.
+- Provenance and identity fields (`source_name`, `source_bundle_id`,
+  `external_uuid`, `metadata`) are set server-side and must not be sent.
+- Documented the write in the `fitness-program-design` skill and added CLI tests.
 
 ### 2026-06-20 - Coaching best-practices skill
 
