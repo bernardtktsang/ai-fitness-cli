@@ -388,6 +388,29 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness-program-design", names)
         self.assertIn("meal-logging", names)
 
+    def test_coaching_skill_is_bundled(self) -> None:
+        with mock.patch("sys.stdout") as stdout:
+            result = cli.main(["skills", "list", "--json"])
+
+        self.assertEqual(result, 0)
+        output = "".join(call.args[0] for call in stdout.write.call_args_list)
+        names = {skill["name"] for skill in json.loads(output)["skills"]}
+        self.assertIn("coaching-best-practices", names)
+
+    def test_coaching_skill_documents_atomic_habits_behaviors(self) -> None:
+        skill = (cli.get_skill_dir("coaching-best-practices") / "SKILL.md").read_text()
+
+        # (a) summarize progress and encourage when on track, reusing item 40's
+        # enriched brief instead of authoring a second progress summary.
+        self.assertIn("fitness context brief", skill)
+        self.assertIn("on track", skill.lower())
+        # (b) propose habit stacking at plan setup.
+        self.assertIn("habit stack", skill.lower())
+        # (c) ask the user their self-chosen reward.
+        self.assertIn("reward", skill.lower())
+        # Reuses allowlisted commands; adds no new tool surface.
+        self.assertIn("no new", skill.lower())
+
     def test_skills_show_prints_skill(self) -> None:
         with mock.patch("sys.stdout") as stdout:
             result = cli.main(["skills", "show", "meal-logging"])
