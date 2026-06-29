@@ -348,6 +348,13 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness foods search", meal_skill)
         self.assertIn("not a generic food", meal_skill)
 
+    def test_program_design_skill_documents_edit_in_place_programme_updates(self) -> None:
+        program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
+
+        self.assertIn("edit the existing programme or phase in place", program_skill)
+        self.assertIn("Do not create another active", program_skill)
+        self.assertIn("deactivate or delete the superseded", program_skill)
+
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result = cli.main(["skills", "export", "--skill", "meal-logging", "--dest", temp_dir])

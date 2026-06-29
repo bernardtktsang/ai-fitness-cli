@@ -112,6 +112,12 @@ Target layers:
 - Weekly overrides: repeating day-of-week values for training/rest patterns, if supported by the active backend.
 - Daily adjustments: one-off date-specific changes for exceptions.
 
+When updating an existing plan, first read the current programmes/projections,
+then edit the existing programme or phase in place. Do not create another active
+programme or phase with the same name and overlapping dates. If a genuinely new
+programme or phase supersedes an older one, deactivate or delete the superseded
+projection before finishing.
+
 After saving, re-read targets and confirm normalized daily values match the intended plan.
 
 ## Review Meals Against Plan
