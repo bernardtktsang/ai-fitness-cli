@@ -14,6 +14,7 @@ Use this skill for program design, target setting, phase planning, and injury-aw
 - Ask for missing human constraints before locking a plan: age, height, weight, body fat estimate, equipment, training days, session duration, schedule limits, injuries, goal, timeline, cardio preferences, and dietary restrictions.
 - Explain data gaps briefly. Distinguish reliable device data from stale, missing, or user-estimated values.
 - Verify all writes by reading the relevant data back.
+- Save durable coaching context to agent memory when the user states a dietary restriction, physical limitation or injury, lifestyle preference such as training time or rest days, goal update, stated dislike, or recurring context you would otherwise have to re-ask. Use short noun keys like `diet.vegetarian`, `injury.left-knee`, `preference.evening-workouts`, `goal.shift`, or `dislike.running`. Do not save structured data the CLI can read, such as current targets, today's meals, active programmes, or volatile one-off details. Stay within the 2200-character memory budget by deleting stale entries before adding more.
 
 ## Initial Data Pull
 

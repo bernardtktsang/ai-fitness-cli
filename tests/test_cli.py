@@ -355,6 +355,20 @@ class CliTests(unittest.TestCase):
         self.assertIn("Do not create another active", program_skill)
         self.assertIn("deactivate or delete the superseded", program_skill)
 
+    def test_program_design_skill_documents_durable_memory_guidance(self) -> None:
+        program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
+
+        self.assertIn("Save durable coaching context to agent memory", program_skill)
+        self.assertIn("dietary restriction", program_skill)
+        self.assertIn("physical limitation or injury", program_skill)
+        self.assertIn("lifestyle preference", program_skill)
+        self.assertIn("goal update", program_skill)
+        self.assertIn("stated dislike", program_skill)
+        self.assertIn("diet.vegetarian", program_skill)
+        self.assertIn("injury.left-knee", program_skill)
+        self.assertIn("preference.evening-workouts", program_skill)
+        self.assertIn("2200-character memory budget", program_skill)
+
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result = cli.main(["skills", "export", "--skill", "meal-logging", "--dest", temp_dir])
