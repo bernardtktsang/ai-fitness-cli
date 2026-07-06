@@ -109,7 +109,20 @@ Profile and dashboard:
 fitness profile show --json
 fitness profile update --profile-file /tmp/profile.json --json
 fitness dashboard metrics set --today calories,protein_g,steps --week calories,protein_g,steps --json
+fitness dashboard metrics set --primary-today deficit_kcal --today deficit_kcal,calories,protein_g --week deficit_kcal,workouts --json
 ```
+
+When an agent sets numeric nutrition, activity, recovery, or target metrics, it should
+normally include at least those same target metric keys in the dashboard Today
+and/or Week metric lists so the user can see progress against the targets in the
+iOS app. Add extra context metrics when useful, but do not hide newly managed
+targets from dashboard rendering unless the user explicitly wants a leaner view.
+
+`--primary-today` picks the metric emphasized as the large Today hero card; it must
+also appear in `--today` (the iOS app renders it only as the hero, not as a duplicate
+row). Pass `--primary-today none` to clear the emphasis. The user can also edit these
+same preferences by hand in the iOS app, so read current values before overwriting
+(`fitness profile show --json`, under `profile.dashboard.target_metrics`).
 
 Config and bundled skills:
 
@@ -195,7 +208,8 @@ Use flat numeric keys for target maps. Examples include:
   "protein_g": 165,
   "carbs_g": 260,
   "fat_g": 75,
-  "steps": 9000
+  "steps": 9000,
+  "sleep_duration": 8
 }
 ```
 

@@ -523,6 +523,13 @@ def add_dashboard_commands(subparsers: argparse._SubParsersAction) -> None:
     set_cmd = metrics_nested.add_parser("set", help="Set synced Today/Week target metrics.")
     set_cmd.add_argument("--today", required=True, help="Comma-separated metric keys.")
     set_cmd.add_argument("--week", required=True, help="Comma-separated metric keys.")
+    set_cmd.add_argument(
+        "--primary-today",
+        help=(
+            "Metric key emphasized as the Today hero card; must be included in --today. "
+            "Pass 'none' to clear the emphasized metric."
+        ),
+    )
     set_cmd.add_argument("--updated-by", default="agent")
     set_cmd.add_argument("--updated-at", help="ISO datetime. Naive values use the user timezone.")
     add_common_output(set_cmd)

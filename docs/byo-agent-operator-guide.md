@@ -218,6 +218,7 @@ sodium_mg
 saturated_fat_g
 caffeine_mg
 water_ml
+sleep_duration
 steps
 active_energy_kcal
 total_energy_kcal
@@ -228,7 +229,8 @@ workouts
 ```
 
 Energy target aliases such as `target_total_energy_kcal` and
-`target_deficit_kcal` are normalized by the backend. If `calories` plus
+`target_deficit_kcal` are normalized by the backend. Sleep aliases `sleep`,
+`sleep_hours`, and `sleep_hr` normalize to `sleep_duration`. If `calories` plus
 `total_energy_kcal` are provided, the backend derives `deficit_kcal`. If
 `calories` plus `deficit_kcal` are provided, it derives `total_energy_kcal`.
 
@@ -321,14 +323,22 @@ fitness progress show --json
 
 ## Dashboard Updates
 
-Set which metrics the app shows in Today and Week:
+Set which metrics the app shows in Today and Week, and optionally which one is
+emphasized as the large Today hero card (`--primary-today` must also appear in
+`--today`; the app renders it only as the hero, never as a duplicate row; pass
+`none` to clear it):
 
 ```bash
 fitness dashboard metrics set \
+  --primary-today deficit_kcal \
   --today deficit_kcal,calories,protein_g,steps \
   --week deficit_kcal,exercise_minutes,workouts,protein_g \
   --json
 ```
+
+The user can edit the same preferences by hand in the iOS app, so read the current
+values first (`fitness profile show --json`, under `profile.dashboard.target_metrics`)
+instead of overwriting blindly.
 
 Write dashboard recommendations only when the message is useful as a persistent
 dashboard note, not for every chat reply:
