@@ -1,4 +1,3 @@
-"""Remote-only AI Fitness Buddy CLI package."""
+"""Remote-only Ascent AI CLI package."""
 
 __version__ = "0.1.0"
-

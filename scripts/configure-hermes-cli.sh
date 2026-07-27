@@ -12,7 +12,7 @@ RESTART_GATEWAY=0
 
 usage() {
   cat <<'USAGE'
-Configure a Hermes/agent machine to use the installed AI Fitness CLI.
+Configure a Hermes/agent machine to use the installed Ascent AI CLI.
 
 Usage:
   configure-hermes-cli.sh --api-url URL --api-key afb_agent_...
@@ -111,7 +111,7 @@ if [[ "$SKIP_HERMES_MEMORY" -eq 0 ]]; then
     cat >> "$MEMORY_FILE" <<EOF
 
 ---
-For fitness, health, nutrition, workout, dashboard, target, or progress questions, use the CLI command \`$FITNESS_BIN\`. It already has the remote API URL and agent key configured on this machine. Do not ask for API keys, do not print secret environment variables, and use the CLI output to answer in plain language. Useful commands include \`$FITNESS_BIN doctor\`, \`$FITNESS_BIN context brief\`, \`$FITNESS_BIN sync status\`, \`$FITNESS_BIN health summary --start YYYY-MM-DD --end YYYY-MM-DD\`, and \`$FITNESS_BIN meals list --start YYYY-MM-DD --end YYYY-MM-DD\`. For meal logging, omit eaten_at when the user is logging a meal right now; use eaten_at plus timezone for past or specific local meal times. If you have a local skill repository, add the bundled AI Fitness skills with \`$FITNESS_BIN skills export --dest <your-skill-repository-path> --force\`. Otherwise read detailed workflows with \`$FITNESS_BIN skills show meal-logging\` and \`$FITNESS_BIN skills show fitness-program-design\`.
+For fitness, health, nutrition, workout, dashboard, target, or progress questions, use the CLI command \`$FITNESS_BIN\`. It already has the remote API URL and agent key configured on this machine. Do not ask for API keys, do not print secret environment variables, and use the CLI output to answer in plain language. Useful commands include \`$FITNESS_BIN doctor\`, \`$FITNESS_BIN context brief\`, \`$FITNESS_BIN sync status\`, \`$FITNESS_BIN health summary --start YYYY-MM-DD --end YYYY-MM-DD\`, and \`$FITNESS_BIN meals list --start YYYY-MM-DD --end YYYY-MM-DD\`. For meal logging, omit eaten_at when the user is logging a meal right now; use eaten_at plus timezone for past or specific local meal times. If you have a local skill repository, add the bundled Ascent AI skills with \`$FITNESS_BIN skills export --dest <your-skill-repository-path> --force\`. Otherwise read detailed workflows with \`$FITNESS_BIN skills show meal-logging\` and \`$FITNESS_BIN skills show fitness-program-design\`.
 EOF
   fi
 fi

@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fitness-configure-hermes",
-        description="Configure Hermes to use the installed AI Fitness remote CLI.",
+        description="Configure Hermes to use the installed Ascent AI remote CLI.",
     )
     parser.add_argument("--api-url", default=os.environ.get(API_URL_ENV), help="Backend URL.")
     parser.add_argument(
@@ -116,8 +116,8 @@ def write_memory_note(memory_file: Path, fitness_bin: str) -> None:
             f"commands include `{fitness_bin} doctor`, `{fitness_bin} context brief`, "
             f"`{fitness_bin} sync status`, `{fitness_bin} health summary --start YYYY-MM-DD "
             f"--end YYYY-MM-DD`, and `{fitness_bin} meals list --start YYYY-MM-DD "
-            f"--end YYYY-MM-DD`. If you have a local skill repository, add the bundled AI "
-            f"Fitness skills with `{fitness_bin} skills export --dest <your-skill-repository-path> "
+            f"--end YYYY-MM-DD`. If you have a local skill repository, add the bundled Ascent "
+            f"AI skills with `{fitness_bin} skills export --dest <your-skill-repository-path> "
             f"--force`. Otherwise read detailed workflows with `{fitness_bin} skills show "
             f"meal-logging` and `{fitness_bin} skills show fitness-program-design`.\n"
         )

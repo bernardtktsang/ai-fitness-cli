@@ -1,11 +1,11 @@
 ---
-name: ai-fitness-buddy-cli
-description: Use when working with the AI Fitness Buddy CLI `fitness`, including setup, login, remote API connectivity, command reference, meal logging, meal updates, workouts, health data, targets, programmes, projections, dashboard metrics, JSON schemas, and common validation pitfalls.
+name: ascent-ai-cli
+description: Use when working with the Ascent AI CLI `fitness`, including setup, login, remote API connectivity, command reference, meal logging, meal updates, workouts, health data, targets, programmes, projections, dashboard metrics, JSON schemas, and common validation pitfalls.
 ---
 
-# AI Fitness Buddy CLI
+# Ascent AI CLI
 
-Use this skill as the command and schema reference for the remote-only AI Fitness Buddy CLI.
+Use this skill as the command and schema reference for the remote-only Ascent AI CLI.
 
 ## Default Workflow
 
@@ -146,7 +146,7 @@ Config and bundled skills:
 ```bash
 fitness config show --json
 fitness skills list --json
-fitness skills show ai-fitness-buddy-cli
+fitness skills show ascent-ai-cli
 fitness skills export --dest /path/to/skills
 ```
 

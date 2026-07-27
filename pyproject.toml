@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ai-fitness-cli"
 version = "0.1.0"
-description = "Remote-only CLI for AI Fitness Buddy agents and users."
+description = "Remote-only CLI for Ascent AI agents and users."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

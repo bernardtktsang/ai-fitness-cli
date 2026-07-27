@@ -15,7 +15,10 @@ from urllib import error, request
 CONFIG_ENV = "AI_FITNESS_CLI_CONFIG"
 API_URL_ENV = "FITNESS_API_URL"
 API_KEY_ENV = "FITNESS_API_KEY"
-DEFAULT_API_URL = "https://api.bernardtktsangfitness.com"
+DEFAULT_API_URL = "https://api.ascent-ai-fitness-coach.com"
+LEGACY_API_URLS = {
+    "https://api.bernardtktsangfitness.com": DEFAULT_API_URL,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fitness",
-        description="Remote-only CLI for AI Fitness Buddy agents and users.",
+        description="Remote-only CLI for Ascent AI agents and users.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -107,7 +110,7 @@ def set_remote(parser: argparse.ArgumentParser, command_path: str) -> None:
 
 
 def add_login_commands(subparsers: argparse._SubParsersAction) -> None:
-    login = subparsers.add_parser("login", help="Connect this machine to AI Health Sync.")
+    login = subparsers.add_parser("login", help="Connect this machine to Ascent AI.")
     login.add_argument("--api-url", default=DEFAULT_API_URL, help="Backend URL without /v1.")
     login.add_argument("--api-key", help="User's afb_agent_... key. If omitted, prompts securely.")
     login.add_argument("--config-file", help="Override config file path.")
@@ -729,8 +732,8 @@ def remote_args_from_namespace(args: argparse.Namespace) -> dict[str, Any]:
 
 def prompt_for_agent_key() -> str:
     print(
-        "Open AI Health Sync on your iPhone:\n"
-        "Sync -> Agent Access -> Create Agent Key\n\n"
+        "Open Ascent AI on your iPhone:\n"
+        "Settings -> AI Agent -> Generate Agent Key\n\n"
         "Paste the Agent API key here. It starts with afb_agent_.\n"
         "The key stays on this machine and is never printed back."
     )
@@ -828,7 +831,7 @@ def normalize_api_url(api_url: str) -> str:
         api_url = api_url[:-3]
     if not api_url.startswith(("http://", "https://")):
         raise ValueError("api url must start with http:// or https://")
-    return api_url
+    return LEGACY_API_URLS.get(api_url, api_url)
 
 
 def post_json(url: str, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:

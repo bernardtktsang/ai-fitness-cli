@@ -1,6 +1,6 @@
 ---
 name: fitness-program-design
-description: Design and maintain fitness programs with the AI Fitness CLI. Use when a user asks for a training plan, workout schedule, macro targets, phase targets, hybrid strength/cardio programming, injury-aware replanning, or a review of meals against active targets.
+description: Design and maintain fitness programs with the Ascent AI CLI. Use when a user asks for a training plan, workout schedule, macro targets, phase targets, hybrid strength/cardio programming, injury-aware replanning, or a review of meals against active targets.
 ---
 
 # Fitness Program Design

@@ -1,6 +1,6 @@
 ---
 name: meal-logging
-description: Log, update, and review meals with the AI Fitness CLI from food photos, text descriptions, voice corrections, or nutrition labels. Use when a user wants nutrition estimates saved, corrected, or compared against daily targets.
+description: Log, update, and review meals with the Ascent AI CLI from food photos, text descriptions, voice corrections, or nutrition labels. Use when a user wants nutrition estimates saved, corrected, or compared against daily targets.
 ---
 
 # Meal Logging

@@ -1,15 +1,15 @@
 # BYO Agent Operator Guide
 
-Last updated: 2026-06-20
+Last updated: 2026-07-27
 
-This guide is for a user-owned AI agent that operates AI Fitness Buddy through
+This guide is for a user-owned AI agent that operates Ascent AI through
 the remote `fitness` CLI. It focuses on the durable operating loop after the
 CLI has already been installed and configured.
 
 For command/schema details, use the bundled skills:
 
 ```bash
-fitness skills show ai-fitness-buddy-cli
+fitness skills show ascent-ai-cli
 fitness skills show meal-logging
 fitness skills show fitness-program-design
 fitness skills show coaching-best-practices
@@ -32,7 +32,7 @@ fitness context brief
 
 ```text
 iPhone HealthKit sync
-  -> hosted AI Fitness Buddy API/Postgres
+  -> hosted Ascent AI API/Postgres
   -> user-owned agent runs fitness CLI
   -> user talks to that agent in their preferred chat/runtime
 ```

@@ -14,10 +14,22 @@ from ai_fitness_cli import hermes_setup
 
 
 class CliTests(unittest.TestCase):
+    def test_default_api_url_uses_ascent_production(self) -> None:
+        self.assertEqual(
+            cli.DEFAULT_API_URL,
+            "https://api.ascent-ai-fitness-coach.com",
+        )
+
     def test_normalize_api_url_strips_v1(self) -> None:
         self.assertEqual(
             cli.normalize_api_url("https://api.example.com/v1"),
             "https://api.example.com",
+        )
+
+    def test_normalize_api_url_migrates_legacy_production_host(self) -> None:
+        self.assertEqual(
+            cli.normalize_api_url("https://api.bernardtktsangfitness.com/v1"),
+            cli.DEFAULT_API_URL,
         )
 
     def test_login_writes_locked_config(self) -> None:
@@ -550,7 +562,7 @@ class CliTests(unittest.TestCase):
         output = "".join(call.args[0] for call in stdout.write.call_args_list)
         payload = json.loads(output)
         names = {skill["name"] for skill in payload["skills"]}
-        self.assertIn("ai-fitness-buddy-cli", names)
+        self.assertIn("ascent-ai-cli", names)
         self.assertIn("fitness-program-design", names)
         self.assertIn("meal-logging", names)
 
@@ -587,7 +599,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("Use this skill", output)
 
     def test_bundled_skills_document_food_history_lookup(self) -> None:
-        cli_skill = (cli.get_skill_dir("ai-fitness-buddy-cli") / "SKILL.md").read_text()
+        cli_skill = (cli.get_skill_dir("ascent-ai-cli") / "SKILL.md").read_text()
         meal_skill = (cli.get_skill_dir("meal-logging") / "SKILL.md").read_text()
 
         self.assertIn("fitness foods search", cli_skill)

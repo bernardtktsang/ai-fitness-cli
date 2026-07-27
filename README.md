@@ -1,10 +1,10 @@
-# AI Fitness CLI
+# Ascent AI CLI
 
-Command line access to AI Fitness Buddy data for you and for shell-capable AI
+Command-line access to Ascent AI data for you and for shell-capable AI
 agents.
 
 The `fitness` command lets an agent read and write fitness data through the
-hosted AI Fitness Buddy API without seeing your API key. You run `fitness login`
+hosted Ascent AI API without seeing your API key. You run `fitness login`
 yourself; your agent runs normal shell commands after that.
 
 For the durable operating workflow after setup, read
@@ -17,7 +17,7 @@ For the durable operating workflow after setup, read
 Ask your agent to read this README, then give it this instruction:
 
 ```text
-Install and configure AI Fitness CLI from:
+Install and configure Ascent AI CLI from:
 https://github.com/bernardtktsang/ai-fitness-cli
 
 Use shell/terminal commands.
@@ -35,10 +35,10 @@ After I finish login, run:
 fitness doctor
 fitness context brief
 
-List every AI Fitness skill bundled with the installed CLI:
+List every Ascent AI skill bundled with the installed CLI:
 fitness skills list
 
-If you have a local skill repository, install all bundled AI Fitness skills into it:
+If you have a local skill repository, install all bundled Ascent AI skills into it:
 fitness skills export --dest <your-skill-repository-path> --force
 
 If you do not have a skill repository, read each listed skill directly:
@@ -92,9 +92,9 @@ Log in from your own terminal:
 fitness login
 ```
 
-Open AI Health Sync on your iPhone, go to `Sync -> Agent Access`, create an
-Agent API key, and paste it into the terminal prompt. Do not paste the key into
-chat with an agent.
+Open Ascent AI on your iPhone, go to `Settings -> AI Agent`, generate an Agent
+API key, and paste it into the terminal prompt. Do not paste the key into chat
+with an agent.
 
 Check access:
 
@@ -133,6 +133,16 @@ Use `fitness --help` or `fitness <command> --help` for the full command list.
 
 Keep this section updated whenever CLI behavior, bundled skills, examples, or
 backend-facing command contracts change.
+
+### 2026-07-27 - Ascent AI branding and production API
+
+- Updated user-facing CLI, documentation, and bundled skill branding from AI
+  Fitness Buddy / AI Health Sync to Ascent AI.
+- Changed the default production backend to
+  `https://api.ascent-ai-fitness-coach.com`.
+- Existing configs that contain the former production URL are migrated at
+  request time; custom and self-hosted backend URLs are unchanged.
+- Updated login guidance to the current iOS path: `Settings -> AI Agent`.
 
 ### 2026-06-20 - Agent workout write
 
@@ -213,7 +223,7 @@ The file is written with `0600` permissions. Environment variables override the
 config:
 
 ```bash
-export FITNESS_API_URL=https://api.bernardtktsangfitness.com
+export FITNESS_API_URL=https://api.ascent-ai-fitness-coach.com
 export FITNESS_API_KEY=afb_agent_...
 ```
 
