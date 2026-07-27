@@ -121,6 +121,37 @@ projection before finishing.
 
 After saving, re-read targets and confirm normalized daily values match the intended plan.
 
+## Log A Workout
+
+When the user reports a workout that is not already in Apple Health (for example a session
+described in chat), log it to the backend so it counts toward the active programme:
+
+```bash
+fitness workouts save --file /tmp/workout.json --json
+```
+
+The JSON body accepts `workout_type` (a HealthKit activity-type name such as `strength_training`
+or `running`), `start_time`, and `end_time` (all required), plus optional `duration_seconds`,
+`active_energy_kcal`, `total_energy_kcal`, `distance_m`, `avg_heart_rate_bpm`, `max_heart_rate_bpm`,
+and `notes`. Timestamps follow the same rule as `meals save`: send naive local datetimes with
+`--timezone` (or rely on the user's profile timezone), or send offset datetimes, but do not combine
+an offset with `--timezone`. When `duration_seconds` is omitted it is derived from the interval.
+
+```json
+{
+  "workout_type": "strength_training",
+  "start_time": "2026-06-12T18:00:00",
+  "end_time": "2026-06-12T18:55:00",
+  "active_energy_kcal": 320,
+  "avg_heart_rate_bpm": 118,
+  "notes": "Push day"
+}
+```
+
+Do not send provenance or identity fields: `source_name`, `source_bundle_id`, `external_uuid`, and
+`metadata` are set server-side (agent-origin), so the write is rejected if you include them. Each save
+inserts a new workout; re-read with `fitness workouts list` to confirm it landed.
+
 ## Review Meals Against Plan
 
 When asked to review meals or a day of eating:

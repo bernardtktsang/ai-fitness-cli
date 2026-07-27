@@ -1,6 +1,6 @@
 # BYO Agent Operator Guide
 
-Last updated: 2026-06-05
+Last updated: 2026-06-20
 
 This guide is for a user-owned AI agent that operates AI Fitness Buddy through
 the remote `fitness` CLI. It focuses on the durable operating loop after the
@@ -12,6 +12,7 @@ For command/schema details, use the bundled skills:
 fitness skills show ai-fitness-buddy-cli
 fitness skills show meal-logging
 fitness skills show fitness-program-design
+fitness skills show coaching-best-practices
 ```
 
 ## First-Time Setup

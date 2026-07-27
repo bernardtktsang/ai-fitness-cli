@@ -211,6 +211,64 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
+    def test_workouts_save_maps_json_body_to_remote_command(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                cli.API_URL_ENV: "https://api.example.com",
+                cli.API_KEY_ENV: "afb_agent_secret",
+            },
+            clear=False,
+        ), mock.patch(
+            "ai_fitness_cli.cli.post_json",
+            return_value={"exit_code": 0, "stdout": ""},
+        ) as post_json:
+            result = cli.main([
+                "workouts",
+                "save",
+                "--workout-json",
+                '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
+                "--timezone",
+                "Asia/Hong_Kong",
+            ])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "workouts.save")
+        self.assertEqual(
+            payload["args"]["workout_json"],
+            '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
+        )
+        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
+
+    def test_workouts_save_accepts_shared_file_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workout_file = Path(temp_dir) / "workout.json"
+            workout_file.write_text(
+                '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}'
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(["workouts", "save", "--file", str(workout_file), "--json"])
+
+        self.assertEqual(result, 0)
+        _, _, payload = post_json.call_args.args
+        self.assertEqual(payload["command"], "workouts.save")
+        self.assertEqual(
+            payload["args"]["workout_json"],
+            '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}',
+        )
+        self.assertIsNone(payload["args"]["workout_file"])
+
     def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
         with mock.patch.dict(
             os.environ,
@@ -330,6 +388,29 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness-program-design", names)
         self.assertIn("meal-logging", names)
 
+    def test_coaching_skill_is_bundled(self) -> None:
+        with mock.patch("sys.stdout") as stdout:
+            result = cli.main(["skills", "list", "--json"])
+
+        self.assertEqual(result, 0)
+        output = "".join(call.args[0] for call in stdout.write.call_args_list)
+        names = {skill["name"] for skill in json.loads(output)["skills"]}
+        self.assertIn("coaching-best-practices", names)
+
+    def test_coaching_skill_documents_atomic_habits_behaviors(self) -> None:
+        skill = (cli.get_skill_dir("coaching-best-practices") / "SKILL.md").read_text()
+
+        # (a) summarize progress and encourage when on track, reusing item 40's
+        # enriched brief instead of authoring a second progress summary.
+        self.assertIn("fitness context brief", skill)
+        self.assertIn("on track", skill.lower())
+        # (b) propose habit stacking at plan setup.
+        self.assertIn("habit stack", skill.lower())
+        # (c) ask the user their self-chosen reward.
+        self.assertIn("reward", skill.lower())
+        # Reuses allowlisted commands; adds no new tool surface.
+        self.assertIn("no new", skill.lower())
+
     def test_skills_show_prints_skill(self) -> None:
         with mock.patch("sys.stdout") as stdout:
             result = cli.main(["skills", "show", "meal-logging"])
@@ -368,6 +449,13 @@ class CliTests(unittest.TestCase):
         self.assertIn("injury.left-knee", program_skill)
         self.assertIn("preference.evening-workouts", program_skill)
         self.assertIn("2200-character memory budget", program_skill)
+
+    def test_program_design_skill_documents_workout_write(self) -> None:
+        program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
+
+        self.assertIn("fitness workouts save", program_skill)
+        self.assertIn("set server-side", program_skill)
+
 
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

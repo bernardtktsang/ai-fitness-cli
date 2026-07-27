@@ -234,7 +234,7 @@ def add_health_commands(subparsers: argparse._SubParsersAction) -> None:
 
 
 def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("workouts", help="Workout reads.")
+    parser = subparsers.add_parser("workouts", help="Workout reads and writes.")
     nested = parser.add_subparsers(dest="workout_command", required=True)
     list_cmd = nested.add_parser("list", help="List workouts in a time range.")
     list_cmd.add_argument("--start", required=True, help="ISO start date/datetime. Naive values use the user timezone.")
@@ -243,6 +243,18 @@ def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
     add_timezone_override(list_cmd)
     add_common_output(list_cmd)
     set_remote(list_cmd, "workouts.list")
+
+    save = nested.add_parser(
+        "save",
+        help=(
+            "Save an agent-logged workout from JSON. Provide workout_type, start_time, "
+            "and end_time; provenance and external_uuid are set server-side."
+        ),
+    )
+    add_json_input(save, "workout", file_aliases=("--file",))
+    add_timezone_override(save)
+    add_common_output(save)
+    set_remote(save, "workouts.save")
 
 
 def add_sync_commands(subparsers: argparse._SubParsersAction) -> None:
