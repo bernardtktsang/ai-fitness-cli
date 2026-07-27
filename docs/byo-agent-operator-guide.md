@@ -64,6 +64,7 @@ Start by checking current state:
 ```bash
 fitness doctor
 fitness context brief --json
+fitness context trend --weeks 4 --json
 fitness sync status --json
 fitness targets explain --json
 fitness progress show --json
@@ -83,6 +84,18 @@ fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
 Use the user's timezone when choosing dates. Date-range commands usually use
 `--start` and `--end`; do not use `--start-date` or `--end-date`.
 
+## Workout Corrections
+
+List the relevant range before a manual write so an Apple Health/Watch workout
+is not duplicated. Save manually only when the record is missing or the user
+explicitly requests a correction:
+
+```bash
+fitness workouts save --file /tmp/workout.json --json
+fitness workouts update --workout-id <uuid> --file /tmp/workout-update.json --json
+fitness workouts delete --workout-id <uuid> --json
+```
+
 ## Meal Logging
 
 Before estimating a common recurring food, check personal food history when
@@ -96,6 +109,13 @@ fitness foods history "chicken breast" --json
 
 Food history is this user's prior logged food history. It is not a generic food
 database and does not provide authoritative per-100g nutrition.
+
+For unfamiliar, branded, restaurant, or regional foods, use the structured
+nutrition lookup before estimating:
+
+```bash
+fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+```
 
 For a meal being logged right now, omit all timestamp fields and let the backend
 stamp the save time:
@@ -204,6 +224,7 @@ Pull current target context before writing:
 fitness context brief --json
 fitness targets explain --as-of YYYY-MM-DD --json
 fitness progress show --json
+fitness programme list --json
 ```
 
 Target maps are flat numeric JSON objects. Important keys include:
@@ -253,6 +274,12 @@ fitness programme save \
   --json
 ```
 
+Activate the intended programme after saving or selecting it:
+
+```bash
+fitness programme activate --projection-id <uuid> --json
+```
+
 Save a phase-level daily target template:
 
 ```bash
@@ -284,6 +311,16 @@ fitness targets schedule save \
   --start YYYY-MM-DD \
   --end YYYY-MM-DD \
   --default-targets-file /tmp/default-targets.json \
+  --weekday-targets-file /tmp/weekday-targets.json \
+  --json
+```
+
+Update the same schedule in place after obtaining its ID from `fitness targets
+schedule list --json`:
+
+```bash
+fitness targets schedule update \
+  --projection-id <uuid> \
   --weekday-targets-file /tmp/weekday-targets.json \
   --json
 ```
@@ -324,6 +361,12 @@ fitness progress show --json
 
 ## Dashboard Updates
 
+Read current display preferences and valid metric keys first:
+
+```bash
+fitness dashboard metrics show --json
+```
+
 Set which metrics the app shows in Today and Week, and optionally which one is
 emphasized as the large Today hero card (`--primary-today` must also appear in
 `--today`; the app renders it only as the hero, never as a duplicate row; pass
@@ -337,9 +380,8 @@ fitness dashboard metrics set \
   --json
 ```
 
-The user can edit the same preferences by hand in the iOS app, so read the current
-values first (`fitness profile show --json`, under `profile.dashboard.target_metrics`)
-instead of overwriting blindly.
+The user can edit the same preferences by hand in the iOS app, so do not
+overwrite them without the read above.
 
 Write dashboard recommendations only when the message is useful as a persistent
 dashboard note, not for every chat reply:

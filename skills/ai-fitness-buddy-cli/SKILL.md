@@ -46,6 +46,7 @@ Daily status:
 
 ```bash
 fitness context brief --json
+fitness context trend --weeks 4 --json
 fitness targets explain --as-of YYYY-MM-DD --json
 ```
 
@@ -75,16 +76,28 @@ common foods when time permits. Food history returns prior logged entries from
 this user's meal history; it is not a generic food database and does not provide
 per-100g averages.
 
+Structured nutrition lookup:
+
+```bash
+fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+```
+
 Health and workouts:
 
 ```bash
 fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness health body --json
 fitness health catalog --json
-fitness health samples --metrics steps,heart_rate --start DATETIME --end DATETIME --json
 fitness workouts list --start DATETIME --end DATETIME --json
+fitness workouts save --file /tmp/workout.json --json
+fitness workouts update --workout-id <uuid> --file /tmp/workout-update.json --json
+fitness workouts delete --workout-id <uuid> --json
 fitness sync status --json
 ```
+
+Before manually saving a workout, list the relevant time range and avoid
+duplicating a workout already synced from HealthKit. Use manual writes only for
+missing records or when the user explicitly asks to correct one.
 
 Targets and programmes:
 
@@ -94,8 +107,11 @@ fitness targets phase save --phase-name "Name" --start YYYY-MM-DD --end YYYY-MM-
 fitness targets schedule save --start YYYY-MM-DD --end YYYY-MM-DD --default-targets-file /tmp/d.json --weekday-targets-file /tmp/w.json --json
 fitness targets schedule list --json
 fitness targets schedule show --projection-id <uuid> --json
+fitness targets schedule update --projection-id <uuid> --weekday-targets-file /tmp/w.json --json
 fitness targets daily save --date YYYY-MM-DD --targets-file /tmp/d.json --json
+fitness programme list --json
 fitness programme save --name "Name" --start YYYY-MM-DD --end YYYY-MM-DD --goal "..." --payload-file /tmp/p.json --json
+fitness programme activate --projection-id <uuid> --json
 fitness progress show --json
 fitness projections list --json
 fitness projections show --projection-id <uuid> --json
@@ -108,6 +124,7 @@ Profile and dashboard:
 ```bash
 fitness profile show --json
 fitness profile update --profile-file /tmp/profile.json --json
+fitness dashboard metrics show --json
 fitness dashboard metrics set --today calories,protein_g,steps --week calories,protein_g,steps --json
 fitness dashboard metrics set --primary-today deficit_kcal --today deficit_kcal,calories,protein_g --week deficit_kcal,workouts --json
 ```
@@ -121,8 +138,8 @@ targets from dashboard rendering unless the user explicitly wants a leaner view.
 `--primary-today` picks the metric emphasized as the large Today hero card; it must
 also appear in `--today` (the iOS app renders it only as the hero, not as a duplicate
 row). Pass `--primary-today none` to clear the emphasis. The user can also edit these
-same preferences by hand in the iOS app, so read current values before overwriting
-(`fitness profile show --json`, under `profile.dashboard.target_metrics`).
+same preferences by hand in the iOS app, so run `fitness dashboard metrics show
+--json` before overwriting.
 
 Config and bundled skills:
 

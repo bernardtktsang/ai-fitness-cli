@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import stat
@@ -269,6 +270,108 @@ class CliTests(unittest.TestCase):
         )
         self.assertIsNone(payload["args"]["workout_file"])
 
+    def test_workout_write_commands_forward_json_payloads(self) -> None:
+        cases = [
+            (
+                [
+                    "workouts",
+                    "save",
+                    "--workout-json",
+                    '{"workout_type":"running","start_time":"2026-06-01T07:00:00","end_time":"2026-06-01T08:00:00"}',
+                    "--timezone",
+                    "Asia/Hong_Kong",
+                ],
+                "workouts.save",
+                "workout_json",
+            ),
+            (
+                [
+                    "workouts",
+                    "update",
+                    "--workout-id",
+                    "00000000-0000-0000-0000-000000000001",
+                    "--workout-update-json",
+                    '{"notes":"easy effort"}',
+                ],
+                "workouts.update",
+                "workout_update_json",
+            ),
+            (
+                [
+                    "workouts",
+                    "delete",
+                    "--workout-id",
+                    "00000000-0000-0000-0000-000000000001",
+                ],
+                "workouts.delete",
+                None,
+            ),
+        ]
+        for argv, command, json_key in cases:
+            with self.subTest(command=command), mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(argv)
+
+            self.assertEqual(result, 0)
+            _, _, payload = post_json.call_args.args
+            self.assertEqual(payload["command"], command)
+            if json_key:
+                self.assertIn(json_key, payload["args"])
+
+    def test_new_read_and_programme_commands_forward_remote_contracts(self) -> None:
+        cases = [
+            (
+                ["context", "trend", "--as-of", "2026-06-30", "--weeks", "6"],
+                "context.trend",
+                {"as_of": "2026-06-30", "weeks": 6},
+            ),
+            (
+                ["nutrition", "lookup", "char siu rice", "--portion-hint", "one plate"],
+                "nutrition.lookup",
+                {"query": "char siu rice", "portion_hint": "one plate"},
+            ),
+            (["programme", "list", "--limit", "10"], "programme.list", {"limit": 10}),
+            (
+                [
+                    "programme",
+                    "activate",
+                    "--projection-id",
+                    "00000000-0000-0000-0000-000000000001",
+                ],
+                "programme.activate",
+                {"projection_id": "00000000-0000-0000-0000-000000000001"},
+            ),
+            (["dashboard", "metrics", "show"], "dashboard.metrics.show", {}),
+        ]
+        for argv, command, expected in cases:
+            with self.subTest(command=command), mock.patch.dict(
+                os.environ,
+                {
+                    cli.API_URL_ENV: "https://api.example.com",
+                    cli.API_KEY_ENV: "afb_agent_secret",
+                },
+                clear=False,
+            ), mock.patch(
+                "ai_fitness_cli.cli.post_json",
+                return_value={"exit_code": 0, "stdout": ""},
+            ) as post_json:
+                result = cli.main(argv)
+
+            self.assertEqual(result, 0)
+            _, _, payload = post_json.call_args.args
+            self.assertEqual(payload["command"], command)
+            for key, value in expected.items():
+                self.assertEqual(payload["args"][key], value)
+
     def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
         with mock.patch.dict(
             os.environ,
@@ -376,6 +479,69 @@ class CliTests(unittest.TestCase):
     def test_admin_commands_are_not_registered(self) -> None:
         self.assertEqual(cli.main(["admin"]), 2)
 
+    def test_health_samples_command_is_not_registered(self) -> None:
+        self.assertEqual(cli.main(["health", "samples"]), 2)
+
+    def test_public_remote_command_contract_is_explicit_and_complete(self) -> None:
+        def collect(parser: argparse.ArgumentParser) -> set[str]:
+            commands = set()
+            remote_command = parser._defaults.get("remote_command")
+            if remote_command:
+                commands.add(remote_command)
+            for action in parser._actions:
+                if isinstance(action, argparse._SubParsersAction):
+                    for child in action.choices.values():
+                        commands.update(collect(child))
+            return commands
+
+        expected = {
+            "context.brief",
+            "context.trend",
+            "progress.show",
+            "health.summary",
+            "health.body",
+            "health.catalog",
+            "workouts.list",
+            "workouts.save",
+            "workouts.update",
+            "workouts.delete",
+            "sync.status",
+            "profile.show",
+            "profile.update",
+            "meals.summary",
+            "meals.list",
+            "meals.save",
+            "meals.update",
+            "meals.delete",
+            "nutrition.lookup",
+            "foods.search",
+            "foods.list",
+            "foods.history",
+            "foods.get",
+            "projections.list",
+            "projections.show",
+            "projections.deactivate",
+            "projections.delete",
+            "programme.list",
+            "programme.save",
+            "programme.activate",
+            "targets.validate",
+            "targets.explain",
+            "targets.phase.save",
+            "targets.schedule.save",
+            "targets.schedule.list",
+            "targets.schedule.show",
+            "targets.schedule.update",
+            "targets.schedule.deactivate",
+            "targets.schedule.delete",
+            "targets.daily.save",
+            "recommendation.write",
+            "dashboard.metrics.show",
+            "dashboard.metrics.set",
+        }
+
+        self.assertEqual(collect(cli.build_parser()), expected)
+
     def test_skills_list_reports_bundled_skills(self) -> None:
         with mock.patch("sys.stdout") as stdout:
             result = cli.main(["skills", "list", "--json"])
@@ -426,15 +592,19 @@ class CliTests(unittest.TestCase):
 
         self.assertIn("fitness foods search", cli_skill)
         self.assertIn("fitness foods get", cli_skill)
+        self.assertIn("fitness nutrition lookup", cli_skill)
         self.assertIn("fitness foods search", meal_skill)
+        self.assertIn("fitness nutrition lookup", meal_skill)
         self.assertIn("not a generic food", meal_skill)
 
     def test_program_design_skill_documents_edit_in_place_programme_updates(self) -> None:
         program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
 
-        self.assertIn("edit the existing programme or phase in place", program_skill)
+        self.assertIn("edit the\nexisting programme, phase, or schedule in place", program_skill)
         self.assertIn("Do not create another active", program_skill)
         self.assertIn("deactivate or delete the superseded", program_skill)
+        self.assertIn("weekly_overrides`: flat weekly totals", program_skill)
+        self.assertIn("weekday_targets`: recurring day-of-week values", program_skill)
 
     def test_program_design_skill_documents_durable_memory_guidance(self) -> None:
         program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()

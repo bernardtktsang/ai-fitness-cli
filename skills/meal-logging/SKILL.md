@@ -56,6 +56,17 @@ Use those results as prior logged references for this user, especially for
 usual portions and repeated home-cooked foods. They are not a generic food
 database, product-label source, or per-100g nutrition table.
 
+For an unfamiliar, branded, packaged, restaurant, or regional food, use the
+dedicated structured lookup before relying on a model-prior estimate:
+
+```bash
+fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+```
+
+Use returned per-100g or per-serving fields according to their stated basis.
+When lookup misses or the portion remains uncertain, estimate and mark the meal
+provisional or approximate in its notes.
+
 Item-level nutrition keys:
 
 - `calories`
@@ -84,7 +95,8 @@ Add optional nutrients when useful:
 Include optional item fields in the meal JSON when the user mentions them (e.g.,
 "log a black coffee with caffeine").
 
-If the user asks for higher accuracy for branded products, search reliable product pages or nutrition databases and note any regional uncertainty.
+For branded products, prefer the label first, then `fitness nutrition lookup`;
+do not substitute arbitrary web browsing when the structured command can answer.
 
 ## Save A Meal
 

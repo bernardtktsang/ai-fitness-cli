@@ -108,12 +108,16 @@ fitness context brief
 ```bash
 fitness doctor
 fitness context brief
+fitness context trend --weeks 4
 fitness sync status
 fitness health summary --start 2026-05-01 --end 2026-05-16
 fitness meals list --start 2026-05-01 --end 2026-05-16
 fitness foods search rice --json
+fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
 fitness workouts list --start 2026-05-01 --end 2026-05-16
 fitness workouts save --file /tmp/workout.json --json
+fitness programme list
+fitness dashboard metrics show
 fitness progress show
 fitness targets explain
 ```

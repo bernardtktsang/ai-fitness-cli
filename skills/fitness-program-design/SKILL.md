@@ -25,6 +25,7 @@ fitness doctor
 fitness sync status --json
 fitness health catalog --json
 fitness context brief --json
+fitness context trend --weeks 4 --json
 fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness workouts list --start YYYY-MM-DDT00:00:00+00:00 --end YYYY-MM-DDT23:59:59+00:00 --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
@@ -101,25 +102,32 @@ Sun: Full body moderate
 Use the CLI's programme and target commands. Prefer JSON files for structured payloads:
 
 ```bash
+fitness programme list --json
 fitness programme save --name "..." --start YYYY-MM-DD --end YYYY-MM-DD --goal "..." --payload-file /tmp/programme.json --json
+fitness programme activate --projection-id <uuid> --json
 fitness targets phase save --phase-name "..." --start YYYY-MM-DD --end YYYY-MM-DD --targets-file /tmp/targets.json --rationale "..." --json
-fitness targets schedule save --start YYYY-MM-DD --end YYYY-MM-DD --default-targets-file /tmp/default-targets.json --json
+fitness targets schedule save --start YYYY-MM-DD --end YYYY-MM-DD --default-targets-file /tmp/default-targets.json --weekday-targets-file /tmp/weekday-targets.json --json
+fitness targets daily save --date YYYY-MM-DD --targets-file /tmp/date-targets.json --status active --json
 fitness targets explain --as-of YYYY-MM-DD --json
 ```
 
 Target layers:
 
 - Phase targets: baseline daily values for the date range.
-- Weekly overrides: repeating day-of-week values for training/rest patterns, if supported by the active backend.
-- Daily adjustments: one-off date-specific changes for exceptions.
+- Phase `weekly_overrides`: flat weekly totals such as workouts or exercise minutes; these are not weekday rules.
+- Schedule `weekday_targets`: recurring day-of-week values for training/rest patterns.
+- Schedule `date_overrides` or `targets daily save`: one-off date-specific changes for exceptions.
 
-When updating an existing plan, first read the current programmes/projections,
-then edit the existing programme or phase in place. Do not create another active
-programme or phase with the same name and overlapping dates. If a genuinely new
-programme or phase supersedes an older one, deactivate or delete the superseded
-projection before finishing.
+When updating an existing plan, first read `fitness programme list`,
+`fitness targets schedule list`, and `fitness targets explain`, then edit the
+existing programme, phase, or schedule in place. Use `fitness targets schedule
+update --projection-id <uuid> ...` for schedule changes. Do not create another active
+programme, phase, or overlapping schedule for the same intent. If a genuinely new
+item supersedes an older one, deactivate or delete the superseded projection before
+finishing.
 
-After saving, re-read targets and confirm normalized daily values match the intended plan.
+After saving, run `fitness targets explain` for relevant training, rest, and
+exception dates and confirm normalized daily values match the intended plan.
 
 ## Log A Workout
 

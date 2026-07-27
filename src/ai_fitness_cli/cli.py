@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_sync_commands(subparsers)
     add_profile_commands(subparsers)
     add_meal_commands(subparsers)
+    add_nutrition_commands(subparsers)
     add_food_commands(subparsers)
     add_projection_commands(subparsers)
     add_programme_commands(subparsers)
@@ -187,6 +188,12 @@ def add_context_commands(subparsers: argparse._SubParsersAction) -> None:
     add_common_output(brief)
     set_remote(brief, "context.brief")
 
+    trend = nested.add_parser("trend", help="Show recent nutrition, workout, and weight trends.")
+    trend.add_argument("--as-of", help="ISO date. Defaults to today in user timezone.")
+    trend.add_argument("--weeks", type=int, default=4)
+    add_common_output(trend)
+    set_remote(trend, "context.trend")
+
 
 def add_progress_commands(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("progress", help="Plan progress calculations.")
@@ -208,15 +215,6 @@ def add_health_commands(subparsers: argparse._SubParsersAction) -> None:
     summary.add_argument("--end", required=True, help="ISO end date.")
     add_common_output(summary)
     set_remote(summary, "health.summary")
-
-    samples = nested.add_parser("samples", help="Granular health samples.")
-    samples.add_argument("--metrics", required=True, help="Comma-separated metric names.")
-    samples.add_argument("--start", required=True, help="ISO start date/datetime. Naive values use the user timezone.")
-    samples.add_argument("--end", required=True, help="ISO end date/datetime. Naive values use the user timezone.")
-    samples.add_argument("--limit", type=int, default=100)
-    add_timezone_override(samples)
-    add_common_output(samples)
-    set_remote(samples, "health.samples")
 
     body = nested.add_parser("body", help="Body composition measurements.")
     body.add_argument("--metrics", help="Comma-separated body metric names.")
@@ -255,6 +253,18 @@ def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
     add_timezone_override(save)
     add_common_output(save)
     set_remote(save, "workouts.save")
+
+    update = nested.add_parser("update", help="Update a workout from JSON.")
+    update.add_argument("--workout-id", required=True)
+    add_json_input(update, "workout_update", file_aliases=("--file",))
+    add_timezone_override(update)
+    add_common_output(update)
+    set_remote(update, "workouts.update")
+
+    delete = nested.add_parser("delete", help="Delete a workout.")
+    delete.add_argument("--workout-id", required=True)
+    add_common_output(delete)
+    set_remote(delete, "workouts.delete")
 
 
 def add_sync_commands(subparsers: argparse._SubParsersAction) -> None:
@@ -322,6 +332,19 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     delete.add_argument("--meal-id", required=True)
     add_common_output(delete)
     set_remote(delete, "meals.delete")
+
+
+def add_nutrition_commands(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser("nutrition", help="Structured nutrition lookups.")
+    nested = parser.add_subparsers(dest="nutrition_command", required=True)
+    lookup = nested.add_parser(
+        "lookup",
+        help="Look up structured macros for an unfamiliar or branded food.",
+    )
+    lookup.add_argument("query")
+    lookup.add_argument("--portion-hint")
+    add_common_output(lookup)
+    set_remote(lookup, "nutrition.lookup")
 
 
 def add_food_filters(parser: argparse.ArgumentParser) -> None:
@@ -396,8 +419,14 @@ def add_projection_commands(subparsers: argparse._SubParsersAction) -> None:
 
 
 def add_programme_commands(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("programme", help="Programme writes.")
+    parser = subparsers.add_parser("programme", help="Programme reads and writes.")
     nested = parser.add_subparsers(dest="programme_command", required=True)
+
+    list_cmd = nested.add_parser("list", help="List saved programmes and active status.")
+    list_cmd.add_argument("--limit", type=int, default=20)
+    add_common_output(list_cmd)
+    set_remote(list_cmd, "programme.list")
+
     save = nested.add_parser("save", help="Save active programme.")
     save.add_argument("--name", required=True)
     save.add_argument("--start", required=True, help="ISO start date.")
@@ -407,6 +436,12 @@ def add_programme_commands(subparsers: argparse._SubParsersAction) -> None:
     add_json_input(save, "payload", required=False)
     add_common_output(save)
     set_remote(save, "programme.save")
+
+    activate = nested.add_parser("activate", help="Activate one saved programme.")
+    activate.add_argument("--projection-id", required=True)
+    activate.add_argument("--agent-run-id")
+    add_common_output(activate)
+    set_remote(activate, "programme.activate")
 
 
 def add_target_commands(subparsers: argparse._SubParsersAction) -> None:
@@ -532,6 +567,11 @@ def add_dashboard_commands(subparsers: argparse._SubParsersAction) -> None:
     nested = parser.add_subparsers(dest="dashboard_command", required=True)
     metrics = nested.add_parser("metrics", help="Dashboard target metric display order.")
     metrics_nested = metrics.add_subparsers(dest="dashboard_metrics_command", required=True)
+
+    show = metrics_nested.add_parser("show", help="Show dashboard metric preferences and valid keys.")
+    add_common_output(show)
+    set_remote(show, "dashboard.metrics.show")
+
     set_cmd = metrics_nested.add_parser("set", help="Set synced Today/Week target metrics.")
     set_cmd.add_argument("--today", required=True, help="Comma-separated metric keys.")
     set_cmd.add_argument("--week", required=True, help="Comma-separated metric keys.")
