@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_progress_commands(subparsers)
     add_health_commands(subparsers)
     add_workout_commands(subparsers)
+    add_logbook_commands(subparsers)
     add_sync_commands(subparsers)
     add_profile_commands(subparsers)
     add_meal_commands(subparsers)
@@ -268,6 +269,92 @@ def add_workout_commands(subparsers: argparse._SubParsersAction) -> None:
     delete.add_argument("--workout-id", required=True)
     add_common_output(delete)
     set_remote(delete, "workouts.delete")
+
+
+def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
+    """Strength logbook: routines, exercise library, sessions, history and PRs (kg)."""
+    routines = subparsers.add_parser("routines", help="Workout routines (e.g. a Push/Pull/Legs split).")
+    nested = routines.add_subparsers(dest="routine_command", required=True)
+    list_cmd = nested.add_parser("list", help="List routines in order; marks the one up next.")
+    add_common_output(list_cmd)
+    set_remote(list_cmd, "routines.list")
+    get = nested.add_parser("get", help="Show one routine.")
+    get.add_argument("--routine-id", required=True)
+    add_common_output(get)
+    set_remote(get, "routines.get")
+    save = nested.add_parser(
+        "save",
+        help=(
+            "Create a routine from JSON, or replace one (include routine_id). "
+            'Shape: {"name": "Push", "exercises": [{"exercise": "<slug or name>", '
+            '"target_sets": 3, "target_reps": 8, "target_kg": 60}]}.'
+        ),
+    )
+    add_json_input(save, "routine", file_aliases=("--file",))
+    add_common_output(save)
+    set_remote(save, "routines.save")
+    delete = nested.add_parser("delete", help="Delete a routine (past sessions keep their history).")
+    delete.add_argument("--routine-id", required=True)
+    add_common_output(delete)
+    set_remote(delete, "routines.delete")
+
+    exercises = subparsers.add_parser("exercises", help="Exercise library, history and personal records.")
+    nested = exercises.add_subparsers(dest="exercise_command", required=True)
+    search = nested.add_parser("search", help="Search the exercise library.")
+    search.add_argument("--q", help="Name search.")
+    search.add_argument("--muscle", help="chest, back, shoulders, biceps, triceps, forearms, quads, hamstrings, glutes, calves, core, full_body.")
+    search.add_argument("--equipment", help="barbell, dumbbell, machine, cable, bodyweight, kettlebell, band, smith_machine, other.")
+    search.add_argument("--scope", choices=("all", "recent", "suggested"), default="all")
+    search.add_argument("--routine-id", help="Routine to suggest exercises for (with --scope suggested).")
+    search.add_argument("--limit", type=int, default=50)
+    add_common_output(search)
+    set_remote(search, "exercises.search")
+    create = nested.add_parser(
+        "create",
+        help=(
+            "Create a custom exercise from JSON: name, exercise_type "
+            "(weighted|bodyweight|assisted|timed), primary_muscle, equipment, secondary_muscles."
+        ),
+    )
+    add_json_input(create, "exercise", file_aliases=("--file",))
+    add_common_output(create)
+    set_remote(create, "exercises.create")
+    history = nested.add_parser("history", help="Progress series + PRs for one exercise.")
+    history.add_argument("--exercise", required=True, help="Slug, exact name or id.")
+    history.add_argument("--metric", help="weighted: heaviest|e1rm|volume; bodyweight: reps|added_kg; assisted: assistance; timed: hold.")
+    history.add_argument("--range", choices=("1M", "3M", "1Y"), default="3M")
+    add_common_output(history)
+    set_remote(history, "exercises.history")
+    prs = nested.add_parser("prs", help="All-time personal records for one exercise (warm-ups excluded).")
+    prs.add_argument("--exercise", required=True, help="Slug, exact name or id.")
+    add_common_output(prs)
+    set_remote(prs, "exercises.prs")
+
+    sessions = subparsers.add_parser("sessions", help="Finished strength sessions (sets, PRs).")
+    nested = sessions.add_subparsers(dest="session_command", required=True)
+    list_sessions = nested.add_parser("list", help="List finished sessions with sets and PRs.")
+    list_sessions.add_argument("--start", help="ISO start date/datetime. Naive values use the user timezone.")
+    list_sessions.add_argument("--end", help="ISO end date/datetime. Naive values use the user timezone.")
+    list_sessions.add_argument("--limit", type=int, default=20)
+    add_common_output(list_sessions)
+    set_remote(list_sessions, "sessions.list")
+    get_session = nested.add_parser("get", help="Show one finished session.")
+    get_session.add_argument("--session-id", required=True)
+    add_common_output(get_session)
+    set_remote(get_session, "sessions.get")
+    save_session = nested.add_parser(
+        "save",
+        help=(
+            "Backfill a finished session from JSON (finished_at required). Shape: "
+            '{"name": "Push", "started_at": "...", "finished_at": "...", "exercises": '
+            '[{"exercise": "<slug or name>", "sets": [{"kg": 80, "reps": 8}]}]}. '
+            "Live sessions are started and finished in the app."
+        ),
+    )
+    add_json_input(save_session, "session", file_aliases=("--file",))
+    add_timezone_override(save_session)
+    add_common_output(save_session)
+    set_remote(save_session, "sessions.save")
 
 
 def add_sync_commands(subparsers: argparse._SubParsersAction) -> None:
