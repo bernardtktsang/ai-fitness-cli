@@ -144,6 +144,20 @@ Before manually saving a workout, list the relevant time range and avoid
 duplicating a workout already synced from HealthKit. Use manual writes only for
 missing records or when the user explicitly asks to correct one.
 
+Goals (text records the user sees on their Profile; no numbers, targets hold numbers):
+
+```bash
+fitness goals list --json
+fitness goals list --include-archived --json
+fitness goals save --title "Run a 10k" --description "Why and by when" --json
+fitness goals save --id <uuid> --title "..." --description "..." --json
+fitness goals archive --id <uuid> --json
+```
+
+Goals are recorded as written by Ascent. Do not rewrite a goal the user wrote
+unless they asked. Max 20 active goals; archive one before adding another.
+Update an existing goal with `--id` instead of creating a duplicate.
+
 Targets and programmes:
 
 ```bash

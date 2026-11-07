@@ -457,6 +457,14 @@ class CliTests(unittest.TestCase):
                 "programme.activate",
                 {"projection_id": "00000000-0000-0000-0000-000000000001"},
             ),
+            (["goals", "list"], "goals.list", {"include_archived": False}),
+            (["goals", "list", "--include-archived"], "goals.list", {"include_archived": True}),
+            (
+                ["goals", "save", "--title", "Run a 10k", "--description", "By spring", "--id", "g-1"],
+                "goals.save",
+                {"title": "Run a 10k", "description": "By spring", "id": "g-1"},
+            ),
+            (["goals", "archive", "--id", "g-1"], "goals.archive", {"id": "g-1"}),
             (["dashboard", "metrics", "show"], "dashboard.metrics.show", {}),
         ]
         for argv, command, expected in cases:
@@ -633,6 +641,9 @@ class CliTests(unittest.TestCase):
             "projections.show",
             "projections.deactivate",
             "projections.delete",
+            "goals.list",
+            "goals.save",
+            "goals.archive",
             "programme.list",
             "programme.save",
             "programme.activate",

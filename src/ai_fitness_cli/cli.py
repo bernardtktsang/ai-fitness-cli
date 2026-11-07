@@ -60,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_food_commands(subparsers)
     add_projection_commands(subparsers)
     add_programme_commands(subparsers)
+    add_goal_commands(subparsers)
     add_target_commands(subparsers)
     add_recommendation_commands(subparsers)
     add_dashboard_commands(subparsers)
@@ -549,6 +550,34 @@ def add_projection_commands(subparsers: argparse._SubParsersAction) -> None:
     delete.add_argument("--projection-id", required=True)
     add_common_output(delete)
     set_remote(delete, "projections.delete")
+
+
+def add_goal_commands(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "goals",
+        help="The user's goals: short text records (no numbers; targets hold numbers).",
+    )
+    nested = parser.add_subparsers(dest="goals_command", required=True)
+
+    list_cmd = nested.add_parser("list", help="List goals, newest first.")
+    list_cmd.add_argument("--include-archived", action="store_true")
+    add_common_output(list_cmd)
+    set_remote(list_cmd, "goals.list")
+
+    save = nested.add_parser(
+        "save",
+        help="Create a goal, or update one with --id. Recorded as written by Ascent.",
+    )
+    save.add_argument("--title", required=True, help="Up to 120 characters.")
+    save.add_argument("--description", help="Up to 2000 characters.")
+    save.add_argument("--id", help="Goal id to update instead of creating a new goal.")
+    add_common_output(save)
+    set_remote(save, "goals.save")
+
+    archive = nested.add_parser("archive", help="Archive a goal (the user can restore it in the app).")
+    archive.add_argument("--id", required=True)
+    add_common_output(archive)
+    set_remote(archive, "goals.archive")
 
 
 def add_programme_commands(subparsers: argparse._SubParsersAction) -> None:
