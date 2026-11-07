@@ -168,6 +168,16 @@ fitness targets schedule list --json
 fitness targets schedule show --projection-id <uuid> --json
 fitness targets schedule update --projection-id <uuid> --weekday-targets-file /tmp/w.json --json
 fitness targets daily save --date YYYY-MM-DD --targets-file /tmp/d.json --json
+```
+
+User-set targets: the user can override any daily target in the Ascent app. Target
+writes (`targets daily save`, `targets schedule save`, `targets phase save`) never change
+a user-set key. The response lists them under `skipped_user_set` with a `hint`, and
+`fitness targets explain` shows them as `user_set_targets`. Do not retry or work around
+the skip: suggest the change to the user in chat and let them update it in the app.
+There is no CLI command to set or reset a user override; that is the user's call.
+
+```bash
 fitness programme list --json
 fitness programme save --name "Name" --start YYYY-MM-DD --end YYYY-MM-DD --goal "..." --payload-file /tmp/p.json --json
 fitness programme activate --projection-id <uuid> --json
@@ -320,4 +330,5 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 
 - No bulk deactivate for projections; loop through projection IDs when needed.
 - `targets schedule show` returns a `{"projection": {...}}` wrapper.
+- A target write that returns `skipped_user_set` still succeeded for the other keys; the skipped keys keep the user's value.
 - There is no `targets daily list` subcommand; use `projections list` or target schedule reads depending on the question.

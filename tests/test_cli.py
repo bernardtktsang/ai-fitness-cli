@@ -710,6 +710,16 @@ class CliTests(unittest.TestCase):
         # Reuses allowlisted commands; adds no new tool surface.
         self.assertIn("no new", skill.lower())
 
+    def test_skills_document_user_set_targets_are_never_overwritten(self) -> None:
+        cli_skill = (cli.get_skill_dir("ascent-ai-cli") / "SKILL.md").read_text()
+        coaching_skill = (cli.get_skill_dir("coaching-best-practices") / "SKILL.md").read_text()
+
+        self.assertIn("skipped_user_set", cli_skill)
+        self.assertIn("user_set_targets", cli_skill)
+        self.assertIn("suggest the change to the user in chat", cli_skill.lower())
+        self.assertIn("user_set_targets", coaching_skill)
+        self.assertIn("never overwrite", coaching_skill.lower())
+
     def test_skills_show_prints_skill(self) -> None:
         with mock.patch("sys.stdout") as stdout:
             result = cli.main(["skills", "show", "meal-logging"])
