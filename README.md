@@ -166,6 +166,11 @@ backend-facing command contracts change.
   not backend writes.
 - Updated the operator guide skill list and CLI tests to cover the new skill.
 
+### 2026-11-07 - Meal titles and edit commands
+
+- `meals save`/`update` accept a short `title`; guidance tells agents to always set one.
+- Added `meals add` (quick add), `meals scale`, `meals item-update`, `meals item-delete`, and `meals undo` (about 60 seconds after creation).
+
 ### 2026-06-05 - Strict itemized meal writes
 
 - Updated meal logging guidance so `meals save` and item-replacement

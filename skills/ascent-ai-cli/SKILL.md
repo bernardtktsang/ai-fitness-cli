@@ -58,7 +58,14 @@ fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness meals save --file /tmp/meal.json --json
 fitness meals update --meal-id <uuid> --file /tmp/meal.json --json
 fitness meals delete --meal-id <uuid> --json
+fitness meals add --title "Protein shake" --calories 250 --protein 30 --json
+fitness meals scale --meal-id <uuid> --servings-scale 1.5 --json
+fitness meals item-update --meal-id <uuid> --item-id <uuid> --item-update-json '{"servings_scale": 0.5, "calories": 300}' --json
+fitness meals item-delete --meal-id <uuid> --item-id <uuid> --json
+fitness meals undo --meal-id <uuid> --json
 ```
+
+Always give `meals save` a short `title` (max 80 chars, e.g. `Chicken rice bowl`); the app shows it on the meal card and `meal_type` is no longer shown. If omitted the backend derives one from the items. `meals scale`/`item-update`/`item-delete` recompute totals and note the edit in `correction_notes`; `meals undo` only works for about 60 seconds after creation (otherwise use `meals delete`).
 
 The generated long-form file flags are also valid: `--meal-file` for `meals save` and `--meal-update-file` for `meals update`.
 
@@ -94,6 +101,44 @@ fitness workouts update --workout-id <uuid> --file /tmp/workout-update.json --js
 fitness workouts delete --workout-id <uuid> --json
 fitness sync status --json
 ```
+
+Strength logbook (routines, exercise library, sessions, PRs; weights are kg):
+
+```bash
+fitness routines list --json
+fitness routines save --file /tmp/push.json --json
+fitness routines get --routine-id <uuid> --json
+fitness routines delete --routine-id <uuid> --json
+fitness exercises search --q bench --muscle chest --json
+fitness exercises search --scope suggested --routine-id <uuid> --json
+fitness exercises create --file /tmp/exercise.json --json
+fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json
+fitness exercises prs --exercise barbell-bench-press --json
+fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness sessions get --session-id <uuid> --json
+fitness sessions save --file /tmp/session.json --timezone Asia/Hong_Kong --json
+```
+
+To build a split (Push/Pull/Legs), search for exercises, then call
+`routines save` once per routine. Reference exercises by `slug` (from
+`exercises search`) or exact name; exercise order is workout order:
+
+```json
+{"name": "Push", "exercises": [
+  {"exercise": "barbell-bench-press", "target_sets": 3, "target_reps": 8, "target_kg": 60},
+  {"exercise": "overhead-press", "target_sets": 3, "target_reps": 10}
+]}
+```
+
+Pass `routine_id` inside the JSON to replace an existing routine. `sessions save`
+only backfills a *finished* session the user already did (the app starts and
+finishes live sessions); `finished_at` is required, sets count as completed
+unless `"completed": false`, warm-ups use `"is_warmup": true`. Exercise types:
+weighted (kg, reps), bodyweight (reps, optional added kg), assisted (assistance
+in `kg`, lower is better), timed (`duration_seconds`). PRs ignore warm-ups, and
+the first session of an exercise is a baseline. Metrics for `exercises history`:
+weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`, assisted
+`assistance`, timed `hold`.
 
 Before manually saving a workout, list the relevant time range and avoid
 duplicating a workout already synced from HealthKit. Use manual writes only for
