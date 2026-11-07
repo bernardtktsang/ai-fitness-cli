@@ -224,7 +224,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
-    def _run_meals(self, argv: list[str]) -> dict:
+    def _run_remote(self, argv: list[str]) -> dict:
         with mock.patch.dict(
             os.environ,
             {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"},
@@ -238,7 +238,7 @@ class CliTests(unittest.TestCase):
         return payload
 
     def test_meals_add_builds_quick_add_save_with_title(self) -> None:
-        payload = self._run_meals(
+        payload = self._run_remote(
             ["meals", "add", "--title", "Protein shake", "--calories", "250", "--protein", "30", "--json"]
         )
         self.assertEqual(payload["command"], "meals.save")
@@ -249,25 +249,75 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("eaten_at", meal)
 
     def test_meals_scale_undo_and_item_commands_map_to_remote_commands(self) -> None:
-        payload = self._run_meals(
+        payload = self._run_remote(
             ["meals", "scale", "--meal-id", "m1", "--servings-scale", "1.5", "--json"]
         )
         self.assertEqual(payload["command"], "meals.scale")
         self.assertEqual(payload["args"]["servings_scale"], 1.5)
-        payload = self._run_meals(["meals", "undo", "--meal-id", "m1", "--json"])
+        payload = self._run_remote(["meals", "undo", "--meal-id", "m1", "--json"])
         self.assertEqual(payload["command"], "meals.undo")
         self.assertEqual(payload["args"]["meal_id"], "m1")
-        payload = self._run_meals(
+        payload = self._run_remote(
             ["meals", "item-update", "--meal-id", "m1", "--item-id", "i1",
              "--item-update-json", '{"calories": 300}', "--json"]
         )
         self.assertEqual(payload["command"], "meals.item.update")
         self.assertEqual(payload["args"]["item_update_json"], '{"calories": 300}')
-        payload = self._run_meals(
+        payload = self._run_remote(
             ["meals", "item-delete", "--meal-id", "m1", "--item-id", "i1", "--json"]
         )
         self.assertEqual(payload["command"], "meals.item.delete")
         self.assertEqual(payload["args"]["item_id"], "i1")
+
+    def test_routines_save_forwards_ppl_json_and_file_alias(self) -> None:
+        body = '{"name": "Push", "exercises": [{"exercise": "barbell-bench-press", "target_sets": 3, "target_reps": 8}]}'
+        payload = self._run_remote(["routines", "save", "--routine-json", body, "--json"])
+        self.assertEqual(payload["command"], "routines.save")
+        self.assertEqual(payload["args"]["routine_json"], body)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            routine_file = Path(temp_dir) / "pull.json"
+            routine_file.write_text(body)
+            payload = self._run_remote(["routines", "save", "--file", str(routine_file)])
+        self.assertEqual(payload["command"], "routines.save")
+        self.assertEqual(payload["args"]["routine_json"], body)
+        self.assertIsNone(payload["args"]["routine_file"])
+
+    def test_logbook_read_commands_forward_remote_contracts(self) -> None:
+        cases = [
+            (["routines", "list"], "routines.list", {}),
+            (["routines", "get", "--routine-id", "r1"], "routines.get", {"routine_id": "r1"}),
+            (["routines", "delete", "--routine-id", "r1"], "routines.delete", {"routine_id": "r1"}),
+            (
+                ["exercises", "search", "--q", "bench", "--muscle", "chest", "--scope", "suggested", "--routine-id", "r1"],
+                "exercises.search",
+                {"q": "bench", "muscle": "chest", "scope": "suggested", "routine_id": "r1", "limit": 50},
+            ),
+            (
+                ["exercises", "history", "--exercise", "barbell-bench-press", "--metric", "e1rm", "--range", "1Y"],
+                "exercises.history",
+                {"exercise": "barbell-bench-press", "metric": "e1rm", "range": "1Y"},
+            ),
+            (["exercises", "prs", "--exercise", "plank"], "exercises.prs", {"exercise": "plank"}),
+            (["sessions", "list", "--start", "2026-11-01"], "sessions.list", {"start": "2026-11-01", "limit": 20}),
+            (["sessions", "get", "--session-id", "s1"], "sessions.get", {"session_id": "s1"}),
+        ]
+        for argv, command, expected in cases:
+            with self.subTest(command=command):
+                payload = self._run_remote(argv)
+                self.assertEqual(payload["command"], command)
+                for key, value in expected.items():
+                    self.assertEqual(payload["args"][key], value)
+
+    def test_logbook_write_commands_forward_json_bodies(self) -> None:
+        exercise = '{"name": "Zercher Squat", "primary_muscle": "quads"}'
+        payload = self._run_remote(["exercises", "create", "--exercise-json", exercise])
+        self.assertEqual(payload["command"], "exercises.create")
+        self.assertEqual(payload["args"]["exercise_json"], exercise)
+        session = '{"finished_at": "2026-11-06T19:00:00", "exercises": [{"exercise": "plank", "sets": [{"duration_seconds": 60}]}]}'
+        payload = self._run_remote(["sessions", "save", "--session-json", session, "--timezone", "Asia/Hong_Kong"])
+        self.assertEqual(payload["command"], "sessions.save")
+        self.assertEqual(payload["args"]["session_json"], session)
+        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
 
     def test_workouts_save_maps_json_body_to_remote_command(self) -> None:
         with mock.patch.dict(
@@ -599,6 +649,17 @@ class CliTests(unittest.TestCase):
             "recommendation.write",
             "dashboard.metrics.show",
             "dashboard.metrics.set",
+            "routines.list",
+            "routines.get",
+            "routines.save",
+            "routines.delete",
+            "exercises.search",
+            "exercises.create",
+            "exercises.history",
+            "exercises.prs",
+            "sessions.list",
+            "sessions.get",
+            "sessions.save",
         }
 
         self.assertEqual(collect(cli.build_parser()), expected)

@@ -102,6 +102,44 @@ fitness workouts delete --workout-id <uuid> --json
 fitness sync status --json
 ```
 
+Strength logbook (routines, exercise library, sessions, PRs; weights are kg):
+
+```bash
+fitness routines list --json
+fitness routines save --file /tmp/push.json --json
+fitness routines get --routine-id <uuid> --json
+fitness routines delete --routine-id <uuid> --json
+fitness exercises search --q bench --muscle chest --json
+fitness exercises search --scope suggested --routine-id <uuid> --json
+fitness exercises create --file /tmp/exercise.json --json
+fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json
+fitness exercises prs --exercise barbell-bench-press --json
+fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness sessions get --session-id <uuid> --json
+fitness sessions save --file /tmp/session.json --timezone Asia/Hong_Kong --json
+```
+
+To build a split (Push/Pull/Legs), search for exercises, then call
+`routines save` once per routine. Reference exercises by `slug` (from
+`exercises search`) or exact name; exercise order is workout order:
+
+```json
+{"name": "Push", "exercises": [
+  {"exercise": "barbell-bench-press", "target_sets": 3, "target_reps": 8, "target_kg": 60},
+  {"exercise": "overhead-press", "target_sets": 3, "target_reps": 10}
+]}
+```
+
+Pass `routine_id` inside the JSON to replace an existing routine. `sessions save`
+only backfills a *finished* session the user already did (the app starts and
+finishes live sessions); `finished_at` is required, sets count as completed
+unless `"completed": false`, warm-ups use `"is_warmup": true`. Exercise types:
+weighted (kg, reps), bodyweight (reps, optional added kg), assisted (assistance
+in `kg`, lower is better), timed (`duration_seconds`). PRs ignore warm-ups, and
+the first session of an exercise is a baseline. Metrics for `exercises history`:
+weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`, assisted
+`assistance`, timed `hold`.
+
 Before manually saving a workout, list the relevant time range and avoid
 duplicating a workout already synced from HealthKit. Use manual writes only for
 missing records or when the user explicitly asks to correct one.
