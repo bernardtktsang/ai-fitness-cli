@@ -224,6 +224,51 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
         self.assertIsNone(payload["args"]["meal_update_file"])
 
+    def _run_meals(self, argv: list[str]) -> dict:
+        with mock.patch.dict(
+            os.environ,
+            {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"},
+            clear=False,
+        ), mock.patch(
+            "ai_fitness_cli.cli.post_json",
+            return_value={"exit_code": 0, "stdout": ""},
+        ) as post_json:
+            self.assertEqual(cli.main(argv), 0)
+        _, _, payload = post_json.call_args.args
+        return payload
+
+    def test_meals_add_builds_quick_add_save_with_title(self) -> None:
+        payload = self._run_meals(
+            ["meals", "add", "--title", "Protein shake", "--calories", "250", "--protein", "30", "--json"]
+        )
+        self.assertEqual(payload["command"], "meals.save")
+        meal = json.loads(payload["args"]["meal_json"])
+        self.assertEqual(meal["title"], "Protein shake")
+        self.assertEqual(meal["items"][0]["calories"], 250)
+        self.assertEqual(meal["items"][0]["protein_g"], 30)
+        self.assertNotIn("eaten_at", meal)
+
+    def test_meals_scale_undo_and_item_commands_map_to_remote_commands(self) -> None:
+        payload = self._run_meals(
+            ["meals", "scale", "--meal-id", "m1", "--servings-scale", "1.5", "--json"]
+        )
+        self.assertEqual(payload["command"], "meals.scale")
+        self.assertEqual(payload["args"]["servings_scale"], 1.5)
+        payload = self._run_meals(["meals", "undo", "--meal-id", "m1", "--json"])
+        self.assertEqual(payload["command"], "meals.undo")
+        self.assertEqual(payload["args"]["meal_id"], "m1")
+        payload = self._run_meals(
+            ["meals", "item-update", "--meal-id", "m1", "--item-id", "i1",
+             "--item-update-json", '{"calories": 300}', "--json"]
+        )
+        self.assertEqual(payload["command"], "meals.item.update")
+        self.assertEqual(payload["args"]["item_update_json"], '{"calories": 300}')
+        payload = self._run_meals(
+            ["meals", "item-delete", "--meal-id", "m1", "--item-id", "i1", "--json"]
+        )
+        self.assertEqual(payload["command"], "meals.item.delete")
+        self.assertEqual(payload["args"]["item_id"], "i1")
+
     def test_workouts_save_maps_json_body_to_remote_command(self) -> None:
         with mock.patch.dict(
             os.environ,
@@ -525,6 +570,10 @@ class CliTests(unittest.TestCase):
             "meals.save",
             "meals.update",
             "meals.delete",
+            "meals.scale",
+            "meals.item.update",
+            "meals.item.delete",
+            "meals.undo",
             "nutrition.lookup",
             "foods.search",
             "foods.list",

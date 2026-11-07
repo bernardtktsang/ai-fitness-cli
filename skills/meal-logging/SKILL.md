@@ -110,7 +110,7 @@ Example JSON:
 
 ```json
 {
-  "meal_type": "breakfast",
+  "title": "Greek yogurt bowl",
   "items": [
     {
       "name": "Greek yogurt",
@@ -138,7 +138,8 @@ Rules:
 - Do not include `quantity`; use `portion_description`.
 - Do not include nested `macros` or `nutrients`; use the flat keys listed above.
 - Do not include meal-level nutrition fields such as `total_calories`, `protein_g`, `carbs_g`, or `fat_g`.
-- Valid `meal_type` values are usually `breakfast`, `lunch`, `dinner`, and `snack`.
+- Always set a short `title` (max 80 chars, e.g. "Chicken rice bowl"); the app shows it on the meal card. `meal_type` is legacy, no longer shown in the app, and can be omitted.
+- To adjust portions after saving, prefer `fitness meals scale --meal-id <id> --servings-scale 1.5` or `fitness meals item-update` over resending the whole meal. Use `fitness meals undo --meal-id <id>` only right after a mistaken save (about 60 seconds); otherwise `fitness meals delete`.
 - Prefer a temporary JSON file and remove it after a successful save.
 - Capture and reuse the returned `meal_id` for corrections.
 
