@@ -34,6 +34,10 @@ fitness progress show --json
 fitness targets explain --as-of YYYY-MM-DD --json
 ```
 
+Targets the user has set themselves appear in `user_set_targets`. Never overwrite them:
+if the data says a user-set target should change, suggest the new number in chat
+and let the user decide.
+
 Then:
 
 - When the brief shows the user **on track** (targets `met` or `near`), lead with
