@@ -58,7 +58,14 @@ fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness meals save --file /tmp/meal.json --json
 fitness meals update --meal-id <uuid> --file /tmp/meal.json --json
 fitness meals delete --meal-id <uuid> --json
+fitness meals add --title "Protein shake" --calories 250 --protein 30 --json
+fitness meals scale --meal-id <uuid> --servings-scale 1.5 --json
+fitness meals item-update --meal-id <uuid> --item-id <uuid> --item-update-json '{"servings_scale": 0.5, "calories": 300}' --json
+fitness meals item-delete --meal-id <uuid> --item-id <uuid> --json
+fitness meals undo --meal-id <uuid> --json
 ```
+
+Always give `meals save` a short `title` (max 80 chars, e.g. `Chicken rice bowl`); the app shows it on the meal card and `meal_type` is no longer shown. If omitted the backend derives one from the items. `meals scale`/`item-update`/`item-delete` recompute totals and note the edit in `correction_notes`; `meals undo` only works for about 60 seconds after creation (otherwise use `meals delete`).
 
 The generated long-form file flags are also valid: `--meal-file` for `meals save` and `--meal-update-file` for `meals update`.
 

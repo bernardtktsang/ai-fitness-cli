@@ -209,6 +209,8 @@ If the user explicitly wants a meal removed:
 fitness meals delete --meal-id <meal_id> --json
 ```
 
+Other meal edits: `fitness meals scale --meal-id <id> --servings-scale 1.5`, `fitness meals item-update`, `fitness meals item-delete`, `fitness meals add` (quick add), and `fitness meals undo` (only about 60 seconds after creation). Always include a short `title` when saving a meal.
+
 Read back the relevant day after correction:
 
 ```bash

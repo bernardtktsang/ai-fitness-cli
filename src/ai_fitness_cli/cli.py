@@ -336,6 +336,49 @@ def add_meal_commands(subparsers: argparse._SubParsersAction) -> None:
     add_common_output(delete)
     set_remote(delete, "meals.delete")
 
+    add = nested.add_parser(
+        "add",
+        help="Quick add one meal from flat macros (saved as a single item).",
+    )
+    add.add_argument("--title", help="Short meal name, e.g. 'Protein shake' (max 80 chars).")
+    add.add_argument("--calories", type=float, required=True)
+    add.add_argument("--protein", type=float, default=0, help="Protein grams.")
+    add.add_argument("--carbs", type=float, default=0, help="Carb grams.")
+    add.add_argument("--fat", type=float, default=0, help="Fat grams.")
+    add.add_argument("--eaten-at", help="Bare local datetime; omit for just-now meals.")
+    add_timezone_override(add)
+    add_common_output(add)
+    add.set_defaults(handler=handle_meals_add)
+
+    scale = nested.add_parser("scale", help="Scale every item in a meal (e.g. 1.5 servings).")
+    scale.add_argument("--meal-id", required=True)
+    scale.add_argument("--servings-scale", type=float, required=True, help="Multiplier, 0.1-20.")
+    add_common_output(scale)
+    set_remote(scale, "meals.scale")
+
+    item_update = nested.add_parser(
+        "item-update",
+        help="Scale or override one meal item (servings_scale and/or field overrides).",
+    )
+    item_update.add_argument("--meal-id", required=True)
+    item_update.add_argument("--item-id", required=True)
+    add_json_input(item_update, "item_update", file_aliases=("--file",))
+    add_common_output(item_update)
+    set_remote(item_update, "meals.item.update")
+
+    item_delete = nested.add_parser("item-delete", help="Remove one item from a meal.")
+    item_delete.add_argument("--meal-id", required=True)
+    item_delete.add_argument("--item-id", required=True)
+    add_common_output(item_delete)
+    set_remote(item_delete, "meals.item.delete")
+
+    undo = nested.add_parser(
+        "undo", help="Undo a just-logged meal (about 60 seconds after creation)."
+    )
+    undo.add_argument("--meal-id", required=True)
+    add_common_output(undo)
+    set_remote(undo, "meals.undo")
+
 
 def add_nutrition_commands(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("nutrition", help="Structured nutrition lookups.")
@@ -701,6 +744,32 @@ def handle_doctor(args: argparse.Namespace) -> int:
         print(f"timezone={response.get('timezone')}")
         print(f"scope={response.get('scope')}")
     return 0
+
+
+def handle_meals_add(args: argparse.Namespace) -> int:
+    meal: dict[str, Any] = {
+        "items": [
+            {
+                "name": args.title or "Quick add",
+                "calories": args.calories,
+                "protein_g": args.protein,
+                "carbs_g": args.carbs,
+                "fat_g": args.fat,
+            }
+        ],
+        "source": "hermes",
+        "estimate_source": "user_entered",
+    }
+    if args.title:
+        meal["title"] = args.title
+    if args.eaten_at:
+        meal["eaten_at"] = args.eaten_at
+    if args.timezone:
+        meal["timezone"] = args.timezone
+    args.remote_command = "meals.save"
+    args.meal_json = json.dumps(meal)
+    args.meal_file = None
+    return handle_remote_command(args)
 
 
 def handle_remote_command(args: argparse.Namespace) -> int:
