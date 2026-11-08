@@ -112,7 +112,7 @@ fitness routines delete --routine-id <uuid> --json
 fitness exercises search --q bench --muscle chest --json
 fitness exercises search --scope suggested --routine-id <uuid> --json
 fitness exercises create --file /tmp/exercise.json --json
-fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json
+fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json   # range: 1M, 3M, 1Y or ALL
 fitness exercises prs --exercise barbell-bench-press --json
 fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness sessions get --session-id <uuid> --json

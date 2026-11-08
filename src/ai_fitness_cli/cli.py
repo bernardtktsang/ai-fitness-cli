@@ -323,7 +323,7 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
     history = nested.add_parser("history", help="Progress series + PRs for one exercise.")
     history.add_argument("--exercise", required=True, help="Slug, exact name or id.")
     history.add_argument("--metric", help="weighted: heaviest|e1rm|volume; bodyweight: reps|added_kg; assisted: assistance; timed: hold.")
-    history.add_argument("--range", choices=("1M", "3M", "1Y"), default="3M")
+    history.add_argument("--range", choices=("1M", "3M", "1Y", "ALL"), default="3M")
     add_common_output(history)
     set_remote(history, "exercises.history")
     prs = nested.add_parser("prs", help="All-time personal records for one exercise (warm-ups excluded).")

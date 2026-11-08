@@ -297,6 +297,11 @@ class CliTests(unittest.TestCase):
                 "exercises.history",
                 {"exercise": "barbell-bench-press", "metric": "e1rm", "range": "1Y"},
             ),
+            (
+                ["exercises", "history", "--exercise", "plank", "--range", "ALL"],
+                "exercises.history",
+                {"exercise": "plank", "range": "ALL"},
+            ),
             (["exercises", "prs", "--exercise", "plank"], "exercises.prs", {"exercise": "plank"}),
             (["sessions", "list", "--start", "2026-11-01"], "sessions.list", {"start": "2026-11-01", "limit": 20}),
             (["sessions", "get", "--session-id", "s1"], "sessions.get", {"session_id": "s1"}),
