@@ -111,15 +111,18 @@ fitness context brief
 fitness context trend --weeks 4
 fitness sync status
 fitness health summary --start 2026-05-01 --end 2026-05-16
-fitness meals list --start 2026-05-01 --end 2026-05-16
+fitness meals list --date 2026-05-16
 fitness foods search rice --json
-fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+fitness foods lookup "char siu rice" --portion-hint "one plate" --json
 fitness workouts list --start 2026-05-01 --end 2026-05-16
 fitness workouts save --file /tmp/workout.json --json
+fitness routines list --readiness
+fitness routines save --name Push --exercise "barbell-bench-press:3x8-10@60"
+fitness sessions list --start 2026-05-01 --end 2026-05-16
+fitness deleted list
 fitness programme list
 fitness dashboard metrics show
-fitness progress show
-fitness targets explain
+fitness targets show
 ```
 
 For meal logging, omit `eaten_at` when the meal is being logged right now. For a past or specific local meal time, use `eaten_at` as a local naive datetime plus `timezone`, for example `{"eaten_at": "2026-06-06T19:30:00", "timezone": "Asia/Hong_Kong"}`. Offset-only `eaten_at` is accepted, but do not combine an offset datetime with `timezone`.
@@ -133,6 +136,30 @@ Use `fitness --help` or `fitness <command> --help` for the full command list.
 
 Keep this section updated whenever CLI behavior, bundled skills, examples, or
 backend-facing command contracts change.
+
+### 2026-11-11 - Tool surface v2
+
+- Every command now maps to one operation of the backend's shared v2 agent tool
+  registry (the same 22 tools as the in-app coach and the MCP connector):
+  `POST /v1/agent/commands` takes the tool name as `command`. Older dotted
+  command names (`meals.save`, `context.brief`, ...) are gone; update the CLI and
+  the server together. `fitness doctor` reports `tool_surface=v2`.
+- New: routines with per-set targets (`sets` list or the single-target shortcut,
+  `routines save --exercise "slug:3x8-10@60"`), upsert by name, `routines edit`
+  (atomic ops), `routines pin`, `routines move`, `routines list --readiness`;
+  `sessions edit`, `sessions delete`, `sessions apply-to-routine --preview|--apply`,
+  `sessions save-as-routine`; `deleted list` and `deleted restore`;
+  `profile week-start`; `exercises rename|archive|unarchive`; `context day`;
+  `health trends`; `foods lookup`.
+- Deletes (`meals`, `workouts`, `routines`, `sessions`) are soft deletes restorable
+  for 30 days.
+- Removed: `progress show`, `targets explain` (use `targets show` / `context brief`),
+  `targets validate`, `targets schedule list|show|update|delete` (save with
+  `--projection-id` updates; `targets deactivate` retires), `projections *`,
+  `recommendation write`, `health catalog` (`context brief --include metrics`),
+  `foods get|history`, `nutrition lookup` (now `foods lookup`), `meals undo`
+  (use `meals delete` + `deleted restore`), `exercises prs` (included in
+  `exercises history`). `meals list` takes `--date`.
 
 ### 2026-07-27 - Ascent AI branding and production API
 

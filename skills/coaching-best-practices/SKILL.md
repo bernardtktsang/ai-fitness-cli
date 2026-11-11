@@ -27,11 +27,12 @@ status with a short narrative line:
 fitness context brief --json
 ```
 
-For deeper plan math when the user asks, use:
+For deeper plan math when the user asks, use the same brief for a specific date or
+week, optionally with saved programmes and goals attached:
 
 ```bash
-fitness progress show --json
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness targets show --as-of YYYY-MM-DD --json
+fitness context brief --week-start YYYY-MM-DD --week-end YYYY-MM-DD --include programmes,goals --json
 ```
 
 Targets the user has set themselves appear in `user_set_targets`. Never overwrite them:
@@ -47,13 +48,9 @@ Then:
   invent figures and do not author a second progress calculation here.
 - When a status is `off`, stay supportive and concrete: name the one target to
   refocus on, not a list, and pair the nudge with what is still going well.
-- If the encouragement is durable and worth seeing in the iOS app (a weekly win
-  or a milestone), persist it as a dashboard note; skip this for ordinary chat
-  replies:
-
-```bash
-fitness recommendation write --title "Nice week" --message "..." --priority normal --json
-```
+- Deliver encouragement in chat. There is no dashboard-note command; do not try to
+  persist a recommendation. Durable facts about the user belong in the agent's own
+  memory.
 
 ## Propose Habit Stacking At Plan Setup
 

@@ -1,21 +1,28 @@
 ---
 name: ascent-ai-cli
-description: Use when working with the Ascent AI CLI `fitness`, including setup, login, remote API connectivity, command reference, meal logging, meal updates, workouts, health data, targets, programmes, projections, dashboard metrics, JSON schemas, and common validation pitfalls.
+description: Use when working with the Ascent AI CLI `fitness`, including setup, login, remote API connectivity, command reference, meal logging, meal edits, strength routines with per-set targets, sessions, recently deleted and restore, readiness, workouts, health data, targets, programmes, dashboard metrics, week start, JSON schemas, and common validation pitfalls.
 ---
 
 # Ascent AI CLI
 
 Use this skill as the command and schema reference for the remote-only Ascent AI CLI.
 
+The CLI exposes the same operations (tool surface v2) as the in-app coach chat and the MCP
+connector, so every command below is one of those operations: reads are coarse, writes are
+small and explicit, and deletes are soft deletes you can undo.
+
 ## Default Workflow
 
-1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain.
-2. Use `--json` for commands whose output will be parsed programmatically.
-3. For structured writes, create a temporary JSON file and pass it with the relevant `--file` or `--*-file` flag.
-4. For meals being logged right now, omit `eaten_at` and let the backend stamp the save time. For past/specific local meal times, use local `eaten_at` plus `timezone`; offset-only datetimes are accepted, but do not combine offsets with `timezone`.
-5. After remote writes, read back the relevant resource when correctness matters.
+1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain. It also checks that the server speaks the v2 command surface (`tool_surface=v2`).
+2. Start with `fitness context brief --json`, then use the narrow reads (`context day`, `sessions list`, `routines list`, `health trends`, `foods search`) for detail.
+3. Use `--json` for commands whose output will be parsed programmatically.
+4. For structured writes, create a temporary JSON file and pass it with the relevant `--file` or `--*-file` flag (or inline with `--*-json`).
+5. For meals being logged right now, omit `eaten_at` and let the backend stamp the save time. For past/specific local meal times, use local `eaten_at` plus `timezone`; offset-only datetimes are accepted, but do not combine offsets with `timezone`. Future times are rejected.
+6. After remote writes, read back the relevant resource when correctness matters.
 
-Destructive commands such as `fitness meals delete`, `fitness projections delete`, and `fitness targets schedule delete` mutate remote data. Confirm intent unless the user explicitly asked for the deletion.
+Deletes (`meals delete`, `sessions delete`, `routines delete`, `workouts delete`) are soft deletes: the item moves to Recently deleted for 30 days and `fitness deleted restore` brings it back. Still delete only what the user asked to remove, and edit (never delete) to fix data.
+
+Only impossible input is rejected: blank names, future dates for logged items, negative numbers, kg on a timed exercise or seconds on a weighted one, unknown metric names. The server's error says how to fix the call; read it and retry. Outliers are never flagged.
 
 ## Installation And Login
 
@@ -32,7 +39,7 @@ fitness doctor
 fitness doctor --json
 ```
 
-Expected setup output includes `mode=remote`, `api_url`, and credential details. If credentials are missing, run:
+Expected setup output includes `mode=remote`, `api_url`, credential details and `tool_surface=v2`. If credentials are missing, run:
 
 ```bash
 fitness login
@@ -42,172 +49,215 @@ If commands fail while referencing old local paths, reinstall with `--force`.
 
 ## Quick Reference
 
-Daily status:
+Daily status and reads:
 
 ```bash
-fitness context brief --json
+fitness context brief --json                       # today + week vs targets, effective targets and their source
+fitness context brief --include goals,programmes,profile,dashboard,sync,metrics,memory --json
+fitness context day --date YYYY-MM-DD --json      # meals, nutrition, Apple Health, workouts, strength sessions
 fitness context trend --weeks 4 --json
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness targets show --as-of YYYY-MM-DD --json     # same brief: effective targets and user_set_targets
+fitness sync status --json
+fitness health trends --start YYYY-MM-DD --end YYYY-MM-DD --sections health,body,nutrition,trend,workouts,samples --json
+fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness health body --metrics weight_kg,body_fat_percent --json
 ```
+
+`health trends --sections samples` needs `--sample-metrics`. Dates are ISO dates.
 
 Meals:
 
 ```bash
+fitness meals list --date YYYY-MM-DD --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness meals save --file /tmp/meal.json --json
 fitness meals update --meal-id <uuid> --file /tmp/meal.json --json
-fitness meals delete --meal-id <uuid> --json
 fitness meals add --title "Protein shake" --calories 250 --protein 30 --json
 fitness meals scale --meal-id <uuid> --servings-scale 1.5 --json
-fitness meals item-update --meal-id <uuid> --item-id <uuid> --item-update-json '{"servings_scale": 0.5, "calories": 300}' --json
+fitness meals item-update --meal-id <uuid> --item-id <uuid> --item-changes-json '{"servings_scale": 0.5, "calories": 300}' --json
 fitness meals item-delete --meal-id <uuid> --item-id <uuid> --json
-fitness meals undo --meal-id <uuid> --json
+fitness meals delete --meal-id <uuid> --json
 ```
 
-Always give `meals save` a short `title` (max 80 chars, e.g. `Chicken rice bowl`); the app shows it on the meal card and `meal_type` is no longer shown. If omitted the backend derives one from the items. `meals scale`/`item-update`/`item-delete` recompute totals and note the edit in `correction_notes`; `meals undo` only works for about 60 seconds after creation (otherwise use `meals delete`).
+Always give `meals save` a short `title` (max 80 chars, e.g. `Chicken rice bowl`); the app shows it on the meal card. If omitted the backend derives one from the items. `meals scale`/`item-update`/`item-delete` recompute totals and note the edit in `correction_notes`. A mistaken save is fixed with `meals delete` (then `deleted restore` if it was wrong to delete). Each meal edit takes exactly one change mode.
 
-The generated long-form file flags are also valid: `--meal-file` for `meals save` and `--meal-update-file` for `meals update`.
+The long-form file flags are `--meal-file` for `meals save` and `--meal-update-file` for `meals update`.
 
-Food history:
+Food history and lookup:
 
 ```bash
-fitness foods search "rice" --json
-fitness foods get "soba noodles" --json
-fitness foods history "chicken breast" --json
-fitness foods list --limit 50 --json
+fitness foods search "rice" --json          # foods the user has logged, exact/whole foods first
+fitness foods list --limit 50 --json        # their most frequently logged foods
+fitness foods lookup "char siu rice" --portion-hint "one plate" --json   # nutrition databases
 ```
 
-Use `fitness foods search` or `fitness foods get --json` before re-estimating
-common foods when time permits. Food history returns prior logged entries from
-this user's meal history; it is not a generic food database and does not provide
-per-100g averages.
+Use `fitness foods search` before re-estimating common foods when time permits. Food
+history returns prior logged entries from this user's meal history; it is not a generic
+food database and does not provide per-100g averages. Use `foods lookup` for unfamiliar,
+branded, packaged or restaurant foods.
 
-Structured nutrition lookup:
-
-```bash
-fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
-```
-
-Health and workouts:
+Workouts (runs, rides, swims; strength training is a session, below):
 
 ```bash
-fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness health body --json
-fitness health catalog --json
-fitness workouts list --start DATETIME --end DATETIME --json
+fitness workouts list --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness workouts save --file /tmp/workout.json --json
-fitness workouts update --workout-id <uuid> --file /tmp/workout-update.json --json
+fitness workouts update --workout-id <uuid> --changes-file /tmp/workout-update.json --json
 fitness workouts delete --workout-id <uuid> --json
-fitness sync status --json
 ```
 
-Strength logbook (routines, exercise library, sessions, PRs; weights are kg):
+Before manually saving a workout, list the relevant range and avoid duplicating a workout
+already synced from HealthKit. Use manual writes only for missing records or when the user
+explicitly asks to correct one.
+
+Strength routines (per-set targets; weights are kg):
 
 ```bash
 fitness routines list --json
-fitness routines save --file /tmp/push.json --json
+fitness routines list --readiness --json            # muscle readiness per routine + the up-next pick
 fitness routines get --routine-id <uuid> --json
+fitness routines save --file /tmp/push.json --json   # upsert by name: replaces the routine with that name
+fitness routines save --name Push --exercise "barbell-bench-press:3x8-10@60" --exercise "plank:3x45s" --json
+fitness routines edit --routine-id <uuid> --ops-file /tmp/ops.json --json
+fitness routines pin --routine-id <uuid> --json      # pin as today's up-next pick
+fitness routines move --routine-id <uuid> --position 0 --json
 fitness routines delete --routine-id <uuid> --json
-fitness exercises search --q bench --muscle chest --json
-fitness exercises search --scope suggested --routine-id <uuid> --json
-fitness exercises create --file /tmp/exercise.json --json
-fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json   # range: 1M, 3M, 1Y or ALL
-fitness exercises prs --exercise barbell-bench-press --json
-fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness sessions get --session-id <uuid> --json
-fitness sessions save --file /tmp/session.json --timezone Asia/Hong_Kong --json
 ```
 
-To build a split (Push/Pull/Legs), search for exercises, then call
-`routines save` once per routine. Reference exercises by `slug` (from
-`exercises search`) or exact name; exercise order is workout order:
+`routines save` creates or replaces by name (names are unique, case-insensitive); send the
+full exercise list in workout order. Reference exercises by `slug` (from `exercises search`)
+or exact name. Give per-set targets as a `sets` list, or use the single-target shortcut:
 
 ```json
 {"name": "Push", "exercises": [
-  {"exercise": "barbell-bench-press", "target_sets": 3, "target_reps": 8, "target_kg": 60},
-  {"exercise": "overhead-press", "target_sets": 3, "target_reps": 10}
+  {"exercise": "barbell-bench-press", "rest_seconds": 150, "sets": [
+    {"set_type": "warmup", "kg": 40, "reps": 10},
+    {"kg": 60, "reps": "6-8"},
+    {"kg": 60, "reps": "6-8"},
+    {"set_type": "drop", "kg": 45, "reps": "8-12"}
+  ]},
+  {"exercise": "overhead-press", "sets": 3, "reps": "8-10", "kg": 12.5},
+  {"exercise": "plank", "sets": 3, "seconds": 45}
 ]}
 ```
 
-Pass `routine_id` inside the JSON to replace an existing routine. `sessions save`
-only backfills a *finished* session the user already did (the app starts and
-finishes live sessions); `finished_at` is required, sets count as completed
-unless `"completed": false`, warm-ups use `"is_warmup": true`. Exercise types:
-weighted (kg, reps), bodyweight (reps, optional added kg), assisted (assistance
-in `kg`, lower is better), timed (`duration_seconds`). PRs ignore warm-ups, and
-the first session of an exercise is a baseline. Metrics for `exercises history`:
-weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`, assisted
-`assistance`, timed `hold`.
+Set types are `warmup`, `working`, `drop`, `failure`. The shortcut `sets: 3, reps: "8-10",
+kg: 12.5` expands to three working sets; the CLI flag form is `<exercise>:<sets>x<reps>[@<kg>]`
+(timed: `plank:3x45s`). A timed exercise takes `seconds`, never `kg`; a weighted one takes `kg`
+and `reps`, never `seconds`.
 
-Before manually saving a workout, list the relevant time range and avoid
-duplicating a workout already synced from HealthKit. Use manual writes only for
-missing records or when the user explicitly asks to correct one.
+For small changes use `routines edit` with ops applied atomically, e.g.:
+
+```json
+[{"op": "rename", "name": "Push A"},
+ {"op": "add_exercise", "exercise": "triceps-pushdown", "sets": 3, "reps": "10-12", "at": 2},
+ {"op": "replace_sets", "exercise": "barbell-bench-press", "sets": [{"kg": 62.5, "reps": "5-6"}]},
+ {"op": "set_rest", "exercise": "barbell-bench-press", "rest_seconds": 180},
+ {"op": "move_exercise", "exercise": "plank", "to": 0},
+ {"op": "remove_exercise", "exercise": "overhead-press"}]
+```
+
+`routines edit` also takes `--pin-up-next` and `--position`. A rename to a name another routine
+already has is rejected with the server's message.
+
+Exercise library, history and PRs:
+
+```bash
+fitness exercises search --q bench --muscle chest --json
+fitness exercises search --scope suggested --routine-id <uuid> --json
+fitness exercises create --file /tmp/exercise.json --json
+fitness exercises rename --exercise <slug-or-id> --name "Low Cable Fly" --json
+fitness exercises archive --exercise <slug-or-id> --json      # custom exercises only; also: unarchive
+fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json   # series + personal records; range 1M, 3M, 1Y or ALL
+```
+
+Metrics for `exercises history`: weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`,
+assisted `assistance`, timed `hold`. Exercise types: weighted (kg, reps), bodyweight (reps,
+optional added kg), assisted (assistance in `kg`, lower is better), timed (`duration_seconds`).
+PRs ignore warm-ups, and the first session of an exercise is a baseline.
+
+Strength sessions:
+
+```bash
+fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness sessions get --session-id <uuid> --json
+fitness sessions save --file /tmp/session.json --timezone Asia/Hong_Kong --json
+fitness sessions edit --session-id <uuid> --name "Chest" --notes "felt good" --json
+fitness sessions edit --session-id <uuid> --exercises-file /tmp/exercises.json --json   # replaces exercises and sets
+fitness sessions apply-to-routine --session-id <uuid> --preview --json   # diff against the source routine
+fitness sessions apply-to-routine --session-id <uuid> --apply --json
+fitness sessions save-as-routine --session-id <uuid> --routine-name "Chest A" --json
+fitness sessions delete --session-id <uuid> --json
+```
+
+`sessions save` only backfills a *finished* session the user already did (the app starts and
+finishes live sessions); `finished_at` is required and future times are rejected. Sets count
+as completed unless `"completed": false`; mark `"set_type"` as `warmup`, `working`, `drop` or
+`failure`. Preview `apply-to-routine` before applying so the user can confirm the routine change.
+
+Recently deleted (kept 30 days):
+
+```bash
+fitness deleted list --json                       # who deleted it (user, coach, agent) and days left
+fitness deleted list --type meals --json          # all | workouts | meals | routines
+fitness deleted restore --type session --id <uuid> --json   # type: meal | session | routine | workout
+```
+
+A restored routine whose name is now taken gets a ` (2)` suffix.
 
 Goals (text records the user sees on their Profile; no numbers, targets hold numbers):
 
 ```bash
 fitness goals list --json
-fitness goals list --include-archived --json
 fitness goals save --title "Run a 10k" --description "Why and by when" --json
 fitness goals save --id <uuid> --title "..." --description "..." --json
 fitness goals archive --id <uuid> --json
 ```
 
-Goals are recorded as written by Ascent. Do not rewrite a goal the user wrote
-unless they asked. Max 20 active goals; archive one before adding another.
-Update an existing goal with `--id` instead of creating a duplicate.
+Goals are recorded as written by Ascent. Do not rewrite a goal the user wrote unless they
+asked. Max 20 active goals; archive one before adding another. Update an existing goal with
+`--id` instead of creating a duplicate.
 
 Targets and programmes:
 
 ```bash
-fitness targets validate --targets-file /tmp/t.json
 fitness targets phase save --phase-name "Name" --start YYYY-MM-DD --end YYYY-MM-DD --targets-file /tmp/t.json --json
 fitness targets schedule save --start YYYY-MM-DD --end YYYY-MM-DD --default-targets-file /tmp/d.json --weekday-targets-file /tmp/w.json --json
-fitness targets schedule list --json
-fitness targets schedule show --projection-id <uuid> --json
-fitness targets schedule update --projection-id <uuid> --weekday-targets-file /tmp/w.json --json
+fitness targets schedule save --projection-id <uuid> --weekday-targets-file /tmp/w.json --json   # update that schedule
 fitness targets daily save --date YYYY-MM-DD --targets-file /tmp/d.json --json
+fitness targets deactivate --projection-id <uuid> --json   # retire a phase, schedule or programme (reversible)
+fitness programme list --json
+fitness programme save --name "Name" --start YYYY-MM-DD --end YYYY-MM-DD --goal "..." --payload-file /tmp/p.json --json
+fitness programme activate --projection-id <uuid> --json
 ```
 
 User-set targets: the user can override any daily target in the Ascent app. Target
 writes (`targets daily save`, `targets schedule save`, `targets phase save`) never change
 a user-set key. The response lists them under `skipped_user_set` with a `hint`, and
-`fitness targets explain` shows them as `user_set_targets`. Do not retry or work around
+`fitness targets show` lists them as `user_set_targets`. Do not retry or work around
 the skip: suggest the change to the user in chat and let them update it in the app.
 There is no CLI command to set or reset a user override; that is the user's call.
 
-```bash
-fitness programme list --json
-fitness programme save --name "Name" --start YYYY-MM-DD --end YYYY-MM-DD --goal "..." --payload-file /tmp/p.json --json
-fitness programme activate --projection-id <uuid> --json
-fitness progress show --json
-fitness projections list --json
-fitness projections show --projection-id <uuid> --json
-fitness projections deactivate --projection-id <uuid> --json
-fitness projections delete --projection-id <uuid> --json
-```
-
-Profile and dashboard:
+Profile, week start and dashboard:
 
 ```bash
 fitness profile show --json
 fitness profile update --profile-file /tmp/profile.json --json
+fitness profile week-start sun --json               # mon | sun | sat
 fitness dashboard metrics show --json
 fitness dashboard metrics set --today calories,protein_g,steps --week calories,protein_g,steps --json
 fitness dashboard metrics set --primary-today deficit_kcal --today deficit_kcal,calories,protein_g --week deficit_kcal,workouts --json
 ```
 
-When an agent sets numeric nutrition, activity, recovery, or target metrics, it should
-normally include at least those same target metric keys in the dashboard Today
-and/or Week metric lists so the user can see progress against the targets in the
-iOS app. Add extra context metrics when useful, but do not hide newly managed
-targets from dashboard rendering unless the user explicitly wants a leaner view.
+The week start day (`mon`, `sun` or `sat`) decides where the Week view and weekly progress
+begin; change it only when the user asks. When an agent sets numeric nutrition, activity,
+recovery, or target metrics, it should normally include at least those same target metric
+keys in the dashboard Today and/or Week metric lists so the user can see progress against
+the targets in the iOS app. Add extra context metrics when useful, but do not hide newly
+managed targets from dashboard rendering unless the user explicitly wants a leaner view.
 
-`--primary-today` picks the metric emphasized as the large Today hero card; it must
-also appear in `--today` (the iOS app renders it only as the hero, not as a duplicate
-row). Pass `--primary-today none` to clear the emphasis. The user can also edit these
-same preferences by hand in the iOS app, so run `fitness dashboard metrics show
+`--primary-today` picks the metric emphasized as the large Today hero card; it must also
+appear in `--today`. Pass `--primary-today none` to clear the emphasis. The user can also
+edit these same preferences by hand in the iOS app, so run `fitness dashboard metrics show
 --json` before overwriting.
 
 Config and bundled skills:
@@ -318,8 +368,7 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 
 - Meal timestamps are optional on save; omit them for just-now meals.
 - For specified local meal times, use `eaten_at` without an offset plus `timezone`; for absolute `eaten_at`, include an offset such as `2026-05-31T12:00:00+08:00` or `Z` and omit `timezone`.
-- Workout and health range datetimes may be date-only, naive local datetimes, or offset-only absolute datetimes; do not combine offsets with `--timezone`.
-- Use `--start` and `--end`, not `--start-date` or `--end-date`.
+- Range reads (`health trends`, `workouts list`, `sessions list`, `meals summary`) take ISO dates via `--start` and `--end`, not `--start-date`/`--end-date`; day reads take `--date`.
 - Use lowercase weekday keys such as `"monday"`, not `"1"` or `"Mon"`.
 - Use `calories` at item level and `total_calories` at meal level.
 - Use confidence as a float such as `0.6`, not a label such as `"medium"`.
@@ -328,7 +377,6 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 
 ## Known Limitations
 
-- No bulk deactivate for projections; loop through projection IDs when needed.
-- `targets schedule show` returns a `{"projection": {...}}` wrapper.
 - A target write that returns `skipped_user_set` still succeeded for the other keys; the skipped keys keep the user's value.
-- There is no `targets daily list` subcommand; use `projections list` or target schedule reads depending on the question.
+- There is no hard delete of plan items: retire them with `targets deactivate` (reversible).
+- Agents keep their own long-term memory; the CLI has no memory command.

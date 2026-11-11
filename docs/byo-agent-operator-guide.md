@@ -53,7 +53,7 @@ Do not use agent memory as the structured nutrition or HealthKit database.
 - Do not write raw SQL against the production database for user fitness writes.
 - Do not invent HealthKit values, body metrics, workouts, or meal logs. Read them with the CLI.
 - Do not auto-log a meal from a photo alone. Wait for an explicit logging request or confirmation.
-- Confirm destructive writes unless the user explicitly requested them: `fitness meals delete`, `fitness projections delete`, and `fitness targets schedule delete`.
+- Confirm destructive writes unless the user explicitly requested them: `fitness meals delete`, `fitness routines delete`, and `fitness sessions delete` (soft deletes; `fitness deleted restore` undoes them within 30 days).
 - After important writes, read back the affected resource before telling the user it is settled.
 - Use `--json` when parsing output programmatically.
 
@@ -66,8 +66,7 @@ fitness doctor
 fitness context brief --json
 fitness context trend --weeks 4 --json
 fitness sync status --json
-fitness targets explain --json
-fitness progress show --json
+fitness targets show --json
 ```
 
 Use narrower reads for specific questions:
@@ -75,10 +74,10 @@ Use narrower reads for specific questions:
 ```bash
 fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
 fitness health body --json
-fitness health catalog --json
+fitness context brief --include metrics --json
 fitness workouts list --start YYYY-MM-DDT00:00:00+08:00 --end YYYY-MM-DDT23:59:59+08:00 --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness meals list --date YYYY-MM-DD --json
 ```
 
 Use the user's timezone when choosing dates. Date-range commands usually use
@@ -103,18 +102,17 @@ time permits:
 
 ```bash
 fitness foods search "rice" --json
-fitness foods get "greek yogurt" --json
-fitness foods history "chicken breast" --json
+fitness foods list --limit 30 --json
 ```
 
 Food history is this user's prior logged food history. It is not a generic food
 database and does not provide authoritative per-100g nutrition.
 
 For unfamiliar, branded, restaurant, or regional foods, use the structured
-nutrition lookup before estimating:
+foods lookup before estimating:
 
 ```bash
-fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+fitness foods lookup "char siu rice" --portion-hint "one plate" --json
 ```
 
 For a meal being logged right now, omit all timestamp fields and let the backend
@@ -209,12 +207,12 @@ If the user explicitly wants a meal removed:
 fitness meals delete --meal-id <meal_id> --json
 ```
 
-Other meal edits: `fitness meals scale --meal-id <id> --servings-scale 1.5`, `fitness meals item-update`, `fitness meals item-delete`, `fitness meals add` (quick add), and `fitness meals undo` (only about 60 seconds after creation). Always include a short `title` when saving a meal.
+Other meal edits: `fitness meals scale --meal-id <id> --servings-scale 1.5`, `fitness meals item-update`, `fitness meals item-delete`, `fitness meals add` (quick add); fix a mistaken save with `fitness meals delete` (restorable via `fitness deleted restore`). Always include a short `title` when saving a meal.
 
 Read back the relevant day after correction:
 
 ```bash
-fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness meals list --date YYYY-MM-DD --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
 ```
 
@@ -224,8 +222,7 @@ Pull current target context before writing:
 
 ```bash
 fitness context brief --json
-fitness targets explain --as-of YYYY-MM-DD --json
-fitness progress show --json
+fitness targets show --as-of YYYY-MM-DD --json
 fitness programme list --json
 ```
 
@@ -261,7 +258,6 @@ Energy target aliases such as `target_total_energy_kcal` and
 Validate target JSON before saving when possible:
 
 ```bash
-fitness targets validate --targets-file /tmp/targets.json
 ```
 
 Save the active programme:
@@ -317,11 +313,11 @@ fitness targets schedule save \
   --json
 ```
 
-Update the same schedule in place after obtaining its ID from `fitness targets
-schedule list --json`:
+Update the same schedule in place after obtaining its ID from `fitness context brief
+--include programmes --json` or `fitness targets show --json`:
 
 ```bash
-fitness targets schedule update \
+fitness targets schedule save \
   --projection-id <uuid> \
   --weekday-targets-file /tmp/weekday-targets.json \
   --json
@@ -357,8 +353,7 @@ fitness targets daily save \
 After any target write, read back:
 
 ```bash
-fitness targets explain --as-of YYYY-MM-DD --json
-fitness progress show --json
+fitness targets show --as-of YYYY-MM-DD --json
 ```
 
 ## Dashboard Updates
@@ -385,24 +380,8 @@ fitness dashboard metrics set \
 The user can edit the same preferences by hand in the iOS app, so do not
 overwrite them without the read above.
 
-Write dashboard recommendations only when the message is useful as a persistent
-dashboard note, not for every chat reply:
-
-```bash
-fitness recommendation write \
-  --title "Today's focus" \
-  --message "Keep the deficit moderate, hit protein, and move the interval session to tomorrow if the ankle is sore." \
-  --priority normal \
-  --recommendation-date YYYY-MM-DD \
-  --json
-```
-
-Use dashboard recommendations for durable advice the user should see in the
-iOS app: today's focus, an injury-aware adjustment, a target rationale, or a
-weekly check-in summary.
-
-Do not use dashboard recommendations for transient chat responses, raw command
-output, secrets, or speculation.
+Dashboard notes (the old `recommendation write`) are not part of the v2 command surface;
+deliver advice in chat.
 
 ## Export, Delete, And Support Expectations
 
@@ -429,10 +408,10 @@ Common cases:
 
 - `fitness doctor` says not logged in: ask the user to run `fitness login`; do not ask for the key in chat.
 - Health data looks stale: check `fitness sync status --json` and ask the user to open the iOS app if background sync has not run recently.
-- Meal save succeeded but daily summary looks stale: check `fitness meals list` before assuming the save failed.
+- Meal save succeeded but daily summary looks stale: check `fitness meals list --date YYYY-MM-DD` before assuming the save failed.
 - Validation fails on meal JSON: remove nested macro/nutrient objects, item `quantity`, and meal-level nutrition totals.
 - Validation fails on targets: use flat numeric target maps and accepted metric keys.
-- A destructive write is requested ambiguously: confirm which meal/projection/schedule to delete before running it.
+- A destructive write is requested ambiguously: confirm which meal/session/routine to delete before running it.
 
 ## Minimal Agent Prompt
 

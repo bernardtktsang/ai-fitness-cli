@@ -22,16 +22,11 @@ Run the narrowest set of commands needed for the request. For a full programme d
 
 ```bash
 fitness doctor
-fitness sync status --json
-fitness health catalog --json
-fitness context brief --json
+fitness context brief --include sync,metrics,profile,programmes,goals --json
 fitness context trend --weeks 4 --json
-fitness health summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness workouts list --start YYYY-MM-DDT00:00:00+00:00 --end YYYY-MM-DDT23:59:59+00:00 --json
-fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness health body --json
-fitness profile show --json
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness health trends --start YYYY-MM-DD --end YYYY-MM-DD --sections health,body,nutrition,workouts --json
+fitness routines list --readiness --json
+fitness sessions list --start YYYY-MM-DD --end YYYY-MM-DD --json
 ```
 
 Use the user's timezone when choosing dates and timestamps.
@@ -108,7 +103,8 @@ fitness programme activate --projection-id <uuid> --json
 fitness targets phase save --phase-name "..." --start YYYY-MM-DD --end YYYY-MM-DD --targets-file /tmp/targets.json --rationale "..." --json
 fitness targets schedule save --start YYYY-MM-DD --end YYYY-MM-DD --default-targets-file /tmp/default-targets.json --weekday-targets-file /tmp/weekday-targets.json --json
 fitness targets daily save --date YYYY-MM-DD --targets-file /tmp/date-targets.json --status active --json
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness targets deactivate --projection-id <uuid> --json
+fitness targets show --as-of YYYY-MM-DD --json
 ```
 
 Target layers:
@@ -118,15 +114,15 @@ Target layers:
 - Schedule `weekday_targets`: recurring day-of-week values for training/rest patterns.
 - Schedule `date_overrides` or `targets daily save`: one-off date-specific changes for exceptions.
 
-When updating an existing plan, first read `fitness programme list`,
-`fitness targets schedule list`, and `fitness targets explain`, then edit the
+When updating an existing plan, first read `fitness programme list` and
+`fitness targets show` (or `fitness context brief --include programmes`), then edit the
 existing programme, phase, or schedule in place. Use `fitness targets schedule
-update --projection-id <uuid> ...` for schedule changes. Do not create another active
+save --projection-id <uuid> ...` for schedule changes. Do not create another active
 programme, phase, or overlapping schedule for the same intent. If a genuinely new
-item supersedes an older one, deactivate or delete the superseded projection before
-finishing.
+item supersedes an older one, run `fitness targets deactivate --projection-id <uuid>`
+on the superseded one before finishing (deactivation is reversible; there is no hard delete).
 
-After saving, run `fitness targets explain` for relevant training, rest, and
+After saving, run `fitness targets show` for relevant training, rest, and
 exception dates and confirm normalized daily values match the intended plan.
 
 ## Log A Workout
@@ -165,9 +161,9 @@ inserts a new workout; re-read with `fitness workouts list` to confirm it landed
 When asked to review meals or a day of eating:
 
 ```bash
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness targets show --as-of YYYY-MM-DD --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness meals list --date YYYY-MM-DD --json
 ```
 
 Compare calories, protein, carbs, and fat against the active target. Call out the specific foods driving any overage or shortfall, then suggest concrete swaps.
@@ -190,5 +186,5 @@ If the user challenges conventional recovery advice, search current evidence fro
 - Do not save targets without at least one numeric baseline target.
 - Do not assume stale HealthKit nutrition macros represent the user's current diet.
 - Do not treat missing catalog metrics as merely delayed; they may not be tracked or ingested.
-- Do not rely on API/CLI success alone. Always read back persisted programmes, projections, or targets.
+- Do not rely on API/CLI success alone. Always read back persisted programmes, schedules, or targets.
 - Do not lock a generic template before asking about schedule, equipment, injuries, sleep, and preferences.

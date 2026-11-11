@@ -49,7 +49,7 @@ recurring foods:
 
 ```bash
 fitness foods search "rice" --json
-fitness foods get "greek yogurt" --json
+fitness foods list --limit 30 --json
 ```
 
 Use those results as prior logged references for this user, especially for
@@ -60,7 +60,7 @@ For an unfamiliar, branded, packaged, restaurant, or regional food, use the
 dedicated structured lookup before relying on a model-prior estimate:
 
 ```bash
-fitness nutrition lookup "char siu rice" --portion-hint "one plate" --json
+fitness foods lookup "char siu rice" --portion-hint "one plate" --json
 ```
 
 Use returned per-100g or per-serving fields according to their stated basis.
@@ -95,7 +95,7 @@ Add optional nutrients when useful:
 Include optional item fields in the meal JSON when the user mentions them (e.g.,
 "log a black coffee with caffeine").
 
-For branded products, prefer the label first, then `fitness nutrition lookup`;
+For branded products, prefer the label first, then `fitness foods lookup`;
 do not substitute arbitrary web browsing when the structured command can answer.
 
 ## Save A Meal
@@ -139,7 +139,7 @@ Rules:
 - Do not include nested `macros` or `nutrients`; use the flat keys listed above.
 - Do not include meal-level nutrition fields such as `total_calories`, `protein_g`, `carbs_g`, or `fat_g`.
 - Always set a short `title` (max 80 chars, e.g. "Chicken rice bowl"); the app shows it on the meal card. `meal_type` is legacy, no longer shown in the app, and can be omitted.
-- To adjust portions after saving, prefer `fitness meals scale --meal-id <id> --servings-scale 1.5` or `fitness meals item-update` over resending the whole meal. Use `fitness meals undo --meal-id <id>` only right after a mistaken save (about 60 seconds); otherwise `fitness meals delete`.
+- To adjust portions after saving, prefer `fitness meals scale --meal-id <id> --servings-scale 1.5` or `fitness meals item-update` over resending the whole meal. After a mistaken save use `fitness meals delete --meal-id <id>` (a soft delete; `fitness deleted restore --type meal --id <id>` brings it back within 30 days).
 - Prefer a temporary JSON file and remove it after a successful save.
 - Capture and reuse the returned `meal_id` for corrections.
 
@@ -185,9 +185,9 @@ Useful commands before or after logging:
 
 ```bash
 fitness context brief --json
-fitness targets explain --as-of YYYY-MM-DD --json
+fitness targets show --as-of YYYY-MM-DD --json
 fitness meals summary --start YYYY-MM-DD --end YYYY-MM-DD --json
-fitness meals list --start YYYY-MM-DD --end YYYY-MM-DD --json
+fitness meals list --date YYYY-MM-DD --json
 ```
 
 If a daily nutrition summary lags behind a recent save, check `fitness meals list` before assuming the meal failed.
@@ -218,7 +218,7 @@ For meal ideas or variations, use short numbered options with ingredients and to
 - **No nested macro/nutrient objects:** Do not send `macros`, `nutrients`, `nutrition`, or similar nested objects. The backend accepts flat keys only and will reject unknown keys.
 - **Calorie key:** Use `calories` inside each item. Do not use meal-level `calories`, meal-level `total_calories`, or item-level `total_calories`.
 - **Meal JSON timestamp fields:** Use `eaten_at` for local wall-clock meal times and include `timezone`; never use `local_eaten_at`, `eaten_at_timezone`, or `logged_at`.
-- **Date arguments:** Most commands use `--start` and `--end` (not `--start-date`). Example: `fitness meals list --start 2026-05-10 --end 2026-05-10` - using `--start-date` will fail with a missing-argument error.
+- **Date arguments:** `meals list` takes one `--date`; range reads such as `meals summary` use `--start` and `--end` (not `--start-date`). Example: `fitness meals list --date 2026-05-10`. Future meal times are rejected.
 - **Assume save time for just-now meals:** When the user confirms they just ate a meal (e.g., "yup," "just ate it," "just now"), do not ask what time and do not invent a timestamp. Only ask for a specific time if the user says they ate it much earlier or later.
 - Estimate raw vs cooked weights for meat when not specified, and note the assumption.
 - Estimate broth, sauces, oils, or shared portions when not specified, and note the assumption.

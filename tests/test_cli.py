@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import stat
@@ -87,7 +88,7 @@ class CliTests(unittest.TestCase):
                 "timezone": "Asia/Hong_Kong",
                 "scope": "agent",
             },
-        ) as get_json:
+        ) as get_json, mock.patch("ai_fitness_cli.cli.post_json", return_value={"exit_code": 0, "stdout": "{}"}):
             result = cli.main(["doctor"])
 
         self.assertEqual(result, 0)
@@ -119,448 +120,340 @@ class CliTests(unittest.TestCase):
                     "timezone": "Asia/Hong_Kong",
                     "scope": "agent",
                 },
-            ):
+            ), mock.patch("ai_fitness_cli.cli.post_json", return_value={"exit_code": 0, "stdout": "{}"}):
                 result = cli.main(["doctor", "--json"])
 
             self.assertEqual(result, 0)
 
-    def test_remote_command_payload(self) -> None:
-        with mock.patch.dict(
-            os.environ,
-            {
-                cli.API_URL_ENV: "https://api.example.com",
-                cli.API_KEY_ENV: "afb_agent_secret",
-            },
-            clear=False,
-        ), mock.patch(
-            "ai_fitness_cli.cli.post_json",
-            return_value={"exit_code": 0, "stdout": "ok\n"},
-        ) as post_json:
-            result = cli.main(["context", "brief", "--as-of", "2026-05-16", "--json"])
+    # ------------------------------------------------------------------ v2 remote commands
 
-        self.assertEqual(result, 0)
-        post_json.assert_called_once()
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "context.brief")
-        self.assertEqual(payload["args"]["as_of"], "2026-05-16")
-        self.assertEqual(payload["args"]["format"], "json")
-
-    def test_timezone_override_is_forwarded_to_remote_command(self) -> None:
-        with mock.patch.dict(
-            os.environ,
-            {
-                cli.API_URL_ENV: "https://api.example.com",
-                cli.API_KEY_ENV: "afb_agent_secret",
-            },
-            clear=False,
-        ), mock.patch(
-            "ai_fitness_cli.cli.post_json",
-            return_value={"exit_code": 0, "stdout": "ok\n"},
-        ) as post_json:
-            result = cli.main([
-                "meals",
-                "list",
-                "--start",
-                "2026-06-01",
-                "--end",
-                "2026-06-06",
-                "--timezone",
-                "Asia/Hong_Kong",
-            ])
-
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "meals.list")
-        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
-
-    def test_meals_save_accepts_shared_file_alias(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            meal_file = Path(temp_dir) / "meal.json"
-            meal_file.write_text('{"meal_type": "lunch", "items": [{"name": "Lunch estimate", "calories": 600, "protein_g": 30, "carbs_g": 60, "fat_g": 20}]}')
-            with mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(["meals", "save", "--file", str(meal_file), "--json"])
-
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "meals.save")
-        self.assertEqual(
-            payload["args"]["meal_json"],
-            '{"meal_type": "lunch", "items": [{"name": "Lunch estimate", "calories": 600, "protein_g": 30, "carbs_g": 60, "fat_g": 20}]}',
-        )
-        self.assertIsNone(payload["args"]["meal_file"])
-
-    def test_meals_update_accepts_shared_file_alias(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            meal_file = Path(temp_dir) / "meal.json"
-            meal_file.write_text('{"notes": "corrected estimate"}')
-            with mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(
-                    ["meals", "update", "--meal-id", "meal-1", "--file", str(meal_file), "--json"]
-                )
-
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "meals.update")
-        self.assertEqual(payload["args"]["meal_update_json"], '{"notes": "corrected estimate"}')
-        self.assertIsNone(payload["args"]["meal_update_file"])
-
-    def _run_remote(self, argv: list[str]) -> dict:
+    def run_cli(self, argv: list[str], response: dict | None = None) -> tuple[int, dict]:
+        """Run the CLI with a mocked API; return (exit code, the posted command payload)."""
         with mock.patch.dict(
             os.environ,
             {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"},
             clear=False,
         ), mock.patch(
             "ai_fitness_cli.cli.post_json",
-            return_value={"exit_code": 0, "stdout": ""},
+            return_value=response or {"exit_code": 0, "stdout": "ok\n"},
         ) as post_json:
-            self.assertEqual(cli.main(argv), 0)
+            result = cli.main(argv)
+        if not post_json.call_args:
+            return result, {}
         _, _, payload = post_json.call_args.args
-        return payload
+        return result, payload
 
-    def test_meals_add_builds_quick_add_save_with_title(self) -> None:
-        payload = self._run_remote(
-            ["meals", "add", "--title", "Protein shake", "--calories", "250", "--protein", "30", "--json"]
+    def assert_command(self, argv: list[str], command: str, args: dict | None = None) -> dict:
+        result, payload = self.run_cli(argv)
+        self.assertEqual(result, 0, argv)
+        self.assertEqual(payload["command"], command, argv)
+        sent = dict(payload["args"])
+        self.assertEqual(sent.pop("format"), "text", argv)
+        if args is not None:
+            self.assertEqual(sent, args, argv)
+        return sent
+
+    def test_remote_command_payload(self) -> None:
+        result, payload = self.run_cli(["context", "brief", "--as-of", "2026-05-16", "--json"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(payload["command"], "get_context_brief")
+        self.assertEqual(payload["args"], {"as_of": "2026-05-16", "format": "json"})
+
+    def test_context_and_read_commands_map_to_v2_tools(self) -> None:
+        self.assert_command(
+            ["context", "brief", "--include", "goals,sync", "--week-start", "2026-06-01"],
+            "get_context_brief",
+            {"include": ["goals", "sync"], "week_start": "2026-06-01"},
         )
-        self.assertEqual(payload["command"], "meals.save")
-        meal = json.loads(payload["args"]["meal_json"])
-        self.assertEqual(meal["title"], "Protein shake")
+        self.assert_command(["context", "day", "--date", "2026-06-02", "--timezone", "Asia/Hong_Kong"], "get_day",
+                            {"date": "2026-06-02", "timezone": "Asia/Hong_Kong"})
+        self.assert_command(["context", "trend", "--weeks", "6"], "get_health_trends",
+                            {"sections": ["trend"], "weeks": 6})
+        self.assert_command(
+            ["health", "trends", "--start", "2026-06-01", "--sections", "health,samples", "--sample-metrics", "heart_rate"],
+            "get_health_trends",
+            {"start": "2026-06-01", "sections": ["health", "samples"], "sample_metrics": ["heart_rate"]},
+        )
+        self.assert_command(["health", "summary", "--start", "2026-06-01", "--end", "2026-06-03"], "get_health_trends",
+                            {"sections": ["health"], "start": "2026-06-01", "end": "2026-06-03"})
+        self.assert_command(["health", "body", "--metrics", "weight_kg,body_fat_percent"], "get_health_trends",
+                            {"sections": ["body"], "body_metrics": ["weight_kg", "body_fat_percent"]})
+        self.assert_command(["sync", "status"], "get_context_brief", {"include": ["sync"]})
+        self.assert_command(["profile", "show"], "get_context_brief", {"include": ["profile"]})
+        self.assert_command(["goals", "list"], "get_context_brief", {"include": ["goals"]})
+        self.assert_command(["programme", "list"], "get_context_brief", {"include": ["programmes"]})
+        self.assert_command(["targets", "show", "--as-of", "2026-06-01"], "get_context_brief", {"as_of": "2026-06-01"})
+        self.assert_command(["dashboard", "metrics", "show"], "get_context_brief", {"include": ["dashboard"]})
+
+    def test_timezone_override_is_forwarded_to_remote_command(self) -> None:
+        self.assert_command(
+            ["meals", "list", "--date", "2026-06-06", "--timezone", "Asia/Hong_Kong"],
+            "get_day",
+            {"date": "2026-06-06", "timezone": "Asia/Hong_Kong"},
+        )
+
+    def test_meal_commands_map_to_v2_tools(self) -> None:
+        meal = {"meal_type": "lunch", "items": [{"name": "Rice", "calories": 600}]}
+        sent = self.assert_command(
+            ["meals", "save", "--meal-json", json.dumps(meal), "--timezone", "Asia/Hong_Kong"], "log_meal"
+        )
+        self.assertEqual(sent["meal"], {**meal, "timezone": "Asia/Hong_Kong"})
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "meal.json"
+            path.write_text(json.dumps(meal))
+            sent = self.assert_command(["meals", "save", "--file", str(path)], "log_meal")
+            self.assertEqual(sent["meal"], meal)
+        self.assert_command(
+            ["meals", "update", "--meal-id", "m1", "--meal-update-json", '{"title": "Lunch"}'],
+            "edit_meal",
+            {"meal_id": "m1", "updates": {"title": "Lunch"}},
+        )
+        self.assert_command(["meals", "delete", "--meal-id", "m1"], "delete_item", {"type": "meal", "id": "m1"})
+        self.assert_command(["meals", "scale", "--meal-id", "m1", "--servings-scale", "1.5"], "edit_meal",
+                            {"meal_id": "m1", "servings_scale": 1.5})
+        self.assert_command(
+            ["meals", "item-update", "--meal-id", "m1", "--item-id", "i1", "--item-changes-json", '{"calories": 123}'],
+            "edit_meal",
+            {"meal_id": "m1", "item_id": "i1", "item_changes": {"calories": 123}},
+        )
+        self.assert_command(["meals", "item-delete", "--meal-id", "m1", "--item-id", "i1"], "edit_meal",
+                            {"meal_id": "m1", "item_id": "i1", "remove_item": True})
+        self.assert_command(["meals", "summary", "--start", "2026-06-01"], "get_health_trends",
+                            {"sections": ["nutrition"], "start": "2026-06-01"})
+
+    def test_meals_add_builds_quick_add_log_with_title(self) -> None:
+        sent = self.assert_command(
+            ["meals", "add", "--title", "Shake", "--calories", "250", "--protein", "30"], "log_meal"
+        )
+        meal = sent["meal"]
+        self.assertEqual(meal["title"], "Shake")
         self.assertEqual(meal["items"][0]["calories"], 250)
         self.assertEqual(meal["items"][0]["protein_g"], 30)
-        self.assertNotIn("eaten_at", meal)
 
-    def test_meals_scale_undo_and_item_commands_map_to_remote_commands(self) -> None:
-        payload = self._run_remote(
-            ["meals", "scale", "--meal-id", "m1", "--servings-scale", "1.5", "--json"]
-        )
-        self.assertEqual(payload["command"], "meals.scale")
-        self.assertEqual(payload["args"]["servings_scale"], 1.5)
-        payload = self._run_remote(["meals", "undo", "--meal-id", "m1", "--json"])
-        self.assertEqual(payload["command"], "meals.undo")
-        self.assertEqual(payload["args"]["meal_id"], "m1")
-        payload = self._run_remote(
-            ["meals", "item-update", "--meal-id", "m1", "--item-id", "i1",
-             "--item-update-json", '{"calories": 300}', "--json"]
-        )
-        self.assertEqual(payload["command"], "meals.item.update")
-        self.assertEqual(payload["args"]["item_update_json"], '{"calories": 300}')
-        payload = self._run_remote(
-            ["meals", "item-delete", "--meal-id", "m1", "--item-id", "i1", "--json"]
-        )
-        self.assertEqual(payload["command"], "meals.item.delete")
-        self.assertEqual(payload["args"]["item_id"], "i1")
+    def test_old_meal_undo_and_nutrition_commands_are_gone(self) -> None:
+        for argv in (["meals", "undo", "--meal-id", "m1"], ["nutrition", "lookup", "oats"], ["progress", "show"]):
+            self.assertEqual(cli.main(argv), 2, argv)
 
-    def test_routines_save_forwards_ppl_json_and_file_alias(self) -> None:
-        body = '{"name": "Push", "exercises": [{"exercise": "barbell-bench-press", "target_sets": 3, "target_reps": 8}]}'
-        payload = self._run_remote(["routines", "save", "--routine-json", body, "--json"])
-        self.assertEqual(payload["command"], "routines.save")
-        self.assertEqual(payload["args"]["routine_json"], body)
+    def test_food_commands_map_to_search_foods_modes(self) -> None:
+        self.assert_command(["foods", "search", "oats", "--meal-type", "lunch"], "search_foods",
+                            {"mode": "history", "query": "oats", "meal_type": "lunch", "limit": 10})
+        self.assert_command(["foods", "list", "--limit", "5"], "search_foods", {"mode": "frequent", "limit": 5})
+        self.assert_command(["foods", "lookup", "Big Mac", "--portion-hint", "1 burger"], "search_foods",
+                            {"mode": "lookup", "query": "Big Mac", "portion_hint": "1 burger"})
+        for argv in (["foods", "history", "oats"], ["foods", "get", "oats"]):
+            self.assertEqual(cli.main(argv), 2, argv)
+
+    def test_workout_commands_map_to_v2_tools(self) -> None:
+        workout = {"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}
+        sent = self.assert_command(["workouts", "save", "--workout-json", json.dumps(workout), "--timezone", "UTC"], "log_workout")
+        self.assertEqual(sent["workout"], {**workout, "timezone": "UTC"})
+        self.assert_command(
+            ["workouts", "update", "--workout-id", "w1", "--changes-json", '{"workout_type": "cycling"}'],
+            "log_workout",
+            {"workout_id": "w1", "changes": {"workout_type": "cycling"}},
+        )
+        self.assert_command(["workouts", "delete", "--workout-id", "w1"], "delete_item", {"type": "workout", "id": "w1"})
+        self.assert_command(["workouts", "list", "--start", "2026-06-01", "--end", "2026-06-07"], "get_health_trends",
+                            {"sections": ["workouts"], "start": "2026-06-01", "end": "2026-06-07"})
+
+    def test_routines_save_forwards_per_set_targets_and_file_alias(self) -> None:
+        routine = {
+            "name": "Push",
+            "exercises": [
+                {
+                    "exercise": "barbell-bench-press",
+                    "sets": [{"set_type": "warmup", "kg": 40, "reps": 10}, {"kg": 60, "reps": "6-8"}],
+                }
+            ],
+        }
+        self.assert_command(["routines", "save", "--routine-json", json.dumps(routine)], "save_routine", routine)
         with tempfile.TemporaryDirectory() as temp_dir:
-            routine_file = Path(temp_dir) / "pull.json"
-            routine_file.write_text(body)
-            payload = self._run_remote(["routines", "save", "--file", str(routine_file)])
-        self.assertEqual(payload["command"], "routines.save")
-        self.assertEqual(payload["args"]["routine_json"], body)
-        self.assertIsNone(payload["args"]["routine_file"])
+            path = Path(temp_dir) / "routine.json"
+            path.write_text(json.dumps(routine))
+            self.assert_command(["routines", "save", "--file", str(path), "--position", "0"], "save_routine",
+                                {**routine, "position": 0})
 
-    def test_logbook_read_commands_forward_remote_contracts(self) -> None:
-        cases = [
-            (["routines", "list"], "routines.list", {}),
-            (["routines", "get", "--routine-id", "r1"], "routines.get", {"routine_id": "r1"}),
-            (["routines", "delete", "--routine-id", "r1"], "routines.delete", {"routine_id": "r1"}),
-            (
-                ["exercises", "search", "--q", "bench", "--muscle", "chest", "--scope", "suggested", "--routine-id", "r1"],
-                "exercises.search",
-                {"q": "bench", "muscle": "chest", "scope": "suggested", "routine_id": "r1", "limit": 50},
-            ),
-            (
-                ["exercises", "history", "--exercise", "barbell-bench-press", "--metric", "e1rm", "--range", "1Y"],
-                "exercises.history",
-                {"exercise": "barbell-bench-press", "metric": "e1rm", "range": "1Y"},
-            ),
-            (
-                ["exercises", "history", "--exercise", "plank", "--range", "ALL"],
-                "exercises.history",
-                {"exercise": "plank", "range": "ALL"},
-            ),
-            (["exercises", "prs", "--exercise", "plank"], "exercises.prs", {"exercise": "plank"}),
-            (["sessions", "list", "--start", "2026-11-01"], "sessions.list", {"start": "2026-11-01", "limit": 20}),
-            (["sessions", "get", "--session-id", "s1"], "sessions.get", {"session_id": "s1"}),
-        ]
-        for argv, command, expected in cases:
-            with self.subTest(command=command):
-                payload = self._run_remote(argv)
-                self.assertEqual(payload["command"], command)
-                for key, value in expected.items():
-                    self.assertEqual(payload["args"][key], value)
+    def test_routines_save_shortcut_expands_to_single_target_specs(self) -> None:
+        self.assert_command(
+            [
+                "routines", "save", "--name", "Push",
+                "--exercise", "barbell-bench-press:3x8-10@60",
+                "--exercise", "Overhead Press:4x6@42.5",
+                "--exercise", "plank:3x45s",
+            ],
+            "save_routine",
+            {
+                "name": "Push",
+                "exercises": [
+                    {"exercise": "barbell-bench-press", "sets": 3, "reps": "8-10", "kg": 60.0},
+                    {"exercise": "Overhead Press", "sets": 4, "reps": 6, "kg": 42.5},
+                    {"exercise": "plank", "sets": 3, "seconds": 45},
+                ],
+            },
+        )
+        for argv in (
+            ["routines", "save"],
+            ["routines", "save", "--name", "X", "--exercise", "bench"],
+            ["routines", "save", "--routine-json", "{}", "--name", "X"],
+        ):
+            with mock.patch("sys.stderr"):
+                self.assertEqual(self.run_cli(argv)[0], 2, argv)
 
-    def test_logbook_write_commands_forward_json_bodies(self) -> None:
-        exercise = '{"name": "Zercher Squat", "primary_muscle": "quads"}'
-        payload = self._run_remote(["exercises", "create", "--exercise-json", exercise])
-        self.assertEqual(payload["command"], "exercises.create")
-        self.assertEqual(payload["args"]["exercise_json"], exercise)
-        session = '{"finished_at": "2026-11-06T19:00:00", "exercises": [{"exercise": "plank", "sets": [{"duration_seconds": 60}]}]}'
-        payload = self._run_remote(["sessions", "save", "--session-json", session, "--timezone", "Asia/Hong_Kong"])
-        self.assertEqual(payload["command"], "sessions.save")
-        self.assertEqual(payload["args"]["session_json"], session)
-        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
+    def test_routine_edit_pin_move_readiness_and_delete(self) -> None:
+        ops = [{"op": "set_rest", "exercise": "plank", "rest_seconds": 90}]
+        self.assert_command(
+            ["routines", "edit", "--routine-id", "r1", "--ops-json", json.dumps(ops), "--pin-up-next", "--position", "1"],
+            "edit_routine",
+            {"routine_id": "r1", "ops": ops, "pin_up_next": True, "position": 1},
+        )
+        self.assert_command(["routines", "pin", "--routine-id", "r1"], "edit_routine", {"routine_id": "r1", "pin_up_next": True})
+        self.assert_command(["routines", "move", "--routine-id", "r1", "--position", "0"], "edit_routine",
+                            {"routine_id": "r1", "position": 0})
+        self.assert_command(["routines", "list", "--readiness"], "get_routines", {"include_readiness": True})
+        self.assert_command(["routines", "get", "--routine-id", "r1"], "get_routines",
+                            {"routine_id": "r1", "include_readiness": False})
+        self.assert_command(["routines", "delete", "--routine-id", "r1"], "delete_item", {"type": "routine", "id": "r1"})
 
-    def test_workouts_save_maps_json_body_to_remote_command(self) -> None:
+    def test_exercise_commands_map_to_v2_tools(self) -> None:
+        self.assert_command(["exercises", "search", "--q", "bench", "--scope", "recent"], "search_exercises",
+                            {"q": "bench", "scope": "recent", "limit": 50})
+        self.assert_command(["exercises", "history", "--exercise", "barbell-bench-press", "--range", "ALL"], "search_exercises",
+                            {"exercise": "barbell-bench-press", "range": "ALL"})
+        self.assert_command(
+            ["exercises", "create", "--exercise-json", '{"name": "Cable Fly", "primary_muscle": "chest"}'],
+            "manage_exercise",
+            {"action": "create", "name": "Cable Fly", "primary_muscle": "chest"},
+        )
+        self.assert_command(["exercises", "rename", "--exercise", "cable-fly", "--name", "Low Cable Fly"], "manage_exercise",
+                            {"action": "rename", "exercise": "cable-fly", "name": "Low Cable Fly"})
+        self.assert_command(["exercises", "archive", "--exercise", "cable-fly"], "manage_exercise",
+                            {"action": "archive", "exercise": "cable-fly"})
+        self.assert_command(["exercises", "unarchive", "--exercise", "cable-fly"], "manage_exercise",
+                            {"action": "unarchive", "exercise": "cable-fly"})
+        self.assertEqual(cli.main(["exercises", "prs", "--exercise", "x"]), 2)
+
+    def test_session_commands_map_to_v2_tools(self) -> None:
+        self.assert_command(["sessions", "list", "--limit", "5"], "get_sessions", {"limit": 5})
+        self.assert_command(["sessions", "get", "--session-id", "s1"], "get_sessions", {"session_id": "s1"})
+        session = {"finished_at": "2026-06-12T19:00:00+00:00", "exercises": [{"exercise": "plank", "sets": [{"duration_seconds": 60}]}]}
+        sent = self.assert_command(["sessions", "save", "--session-json", json.dumps(session), "--timezone", "UTC"], "log_session")
+        self.assertEqual(sent, {**session, "timezone": "UTC"})
+        self.assert_command(
+            ["sessions", "edit", "--session-id", "s1", "--name", "Chest", "--notes", "felt good",
+             "--exercises-json", '[{"exercise": "plank", "sets": []}]'],
+            "edit_session",
+            {"session_id": "s1", "name": "Chest", "notes": "felt good", "exercises": [{"exercise": "plank", "sets": []}]},
+        )
+        self.assert_command(["sessions", "apply-to-routine", "--session-id", "s1", "--preview"], "edit_session",
+                            {"session_id": "s1", "routine_sync": "preview"})
+        self.assert_command(["sessions", "apply-to-routine", "--session-id", "s1", "--apply"], "edit_session",
+                            {"session_id": "s1", "routine_sync": "apply"})
+        self.assert_command(["sessions", "save-as-routine", "--session-id", "s1", "--routine-name", "Chest A"], "edit_session",
+                            {"session_id": "s1", "routine_sync": "save_as_routine", "routine_name": "Chest A"})
+        self.assert_command(["sessions", "delete", "--session-id", "s1"], "delete_item", {"type": "session", "id": "s1"})
+        with mock.patch("sys.stderr"):
+            self.assertEqual(cli.main(["sessions", "apply-to-routine", "--session-id", "s1"]), 2)
+
+    def test_recently_deleted_list_and_restore(self) -> None:
+        self.assert_command(["deleted", "list"], "list_recently_deleted", {"type": "all"})
+        self.assert_command(["deleted", "list", "--type", "meals"], "list_recently_deleted", {"type": "meals"})
+        self.assert_command(["deleted", "restore", "--type", "session", "--id", "s1"], "restore_item",
+                            {"type": "session", "id": "s1"})
+
+    def test_profile_week_start_goals_and_dashboard_use_update_profile(self) -> None:
+        self.assert_command(["profile", "week-start", "sun"], "update_profile", {"week_start": "sun"})
+        self.assert_command(["profile", "update", "--profile-json", '{"injuries": ["knee"]}'], "update_profile",
+                            {"profile": {"injuries": ["knee"]}})
+        self.assert_command(["goals", "save", "--title", "Lift 3x", "--id", "g1"], "update_profile",
+                            {"goal": {"action": "save", "title": "Lift 3x", "goal_id": "g1"}})
+        self.assert_command(["goals", "archive", "--id", "g1"], "update_profile",
+                            {"goal": {"action": "archive", "goal_id": "g1"}})
+        self.assert_command(
+            ["dashboard", "metrics", "set", "--today", "calories,protein_g", "--primary-today", "none"],
+            "update_profile",
+            {"dashboard": {"today_target_metrics": ["calories", "protein_g"], "primary_today_metric": None}},
+        )
+        with mock.patch("sys.stderr"):
+            self.assertEqual(self.run_cli(["dashboard", "metrics", "set"])[0], 2)
+
+    def test_target_and_programme_commands_use_set_targets(self) -> None:
+        self.assert_command(
+            ["programme", "save", "--name", "Cut", "--start", "2026-06-01", "--end", "2026-08-01", "--goal", "lose fat"],
+            "set_targets",
+            {"action": "save", "kind": "programme", "name": "Cut", "start": "2026-06-01", "end": "2026-08-01", "goal": "lose fat"},
+        )
+        self.assert_command(["programme", "activate", "--projection-id", "p1"], "set_targets",
+                            {"action": "activate", "projection_id": "p1"})
+        self.assert_command(["targets", "deactivate", "--projection-id", "p1"], "set_targets",
+                            {"action": "deactivate", "projection_id": "p1"})
+        self.assert_command(
+            ["targets", "daily", "save", "--date", "2026-06-02", "--targets-json", '{"calories": 2000}'],
+            "set_targets",
+            {"action": "save", "kind": "daily_override", "date": "2026-06-02", "targets": {"calories": 2000}},
+        )
+        self.assert_command(
+            ["targets", "phase", "save", "--phase-name", "Cut 1", "--start", "2026-06-01", "--end", "2026-06-30",
+             "--targets-json", '{"calories": 2100}'],
+            "set_targets",
+            {"action": "save", "kind": "phase", "phase_name": "Cut 1", "start": "2026-06-01", "end": "2026-06-30",
+             "targets": {"calories": 2100}},
+        )
+        self.assert_command(
+            ["targets", "schedule", "save", "--start", "2026-06-01", "--end", "2026-06-30",
+             "--weekday-targets-json", '{"monday": {"calories": 2000}}'],
+            "set_targets",
+            {"action": "save", "kind": "weekday_schedule", "start": "2026-06-01", "end": "2026-06-30",
+             "weekday_targets": {"monday": {"calories": 2000}}},
+        )
+        for argv in (
+            ["targets", "schedule", "delete", "--projection-id", "p1"],
+            ["targets", "validate"],
+            ["projections", "list"],
+            ["recommendation", "write", "--message", "hi"],
+        ):
+            self.assertEqual(cli.main(argv), 2, argv)
+
+    def test_routines_save_duplicate_name_shows_the_server_validation_error(self) -> None:
+        body = json.dumps(
+            {
+                "detail": {
+                    "message": "agent command validation failed",
+                    "errors": [{"loc": ["args", "name"], "message": "a routine named 'Push' already exists"}],
+                }
+            }
+        )
         with mock.patch.dict(
             os.environ,
-            {
-                cli.API_URL_ENV: "https://api.example.com",
-                cli.API_KEY_ENV: "afb_agent_secret",
-            },
+            {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"},
             clear=False,
         ), mock.patch(
-            "ai_fitness_cli.cli.post_json",
-            return_value={"exit_code": 0, "stdout": ""},
-        ) as post_json:
-            result = cli.main([
-                "workouts",
-                "save",
-                "--workout-json",
-                '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
-                "--timezone",
-                "Asia/Hong_Kong",
-            ])
+            "ai_fitness_cli.cli.request.urlopen",
+            side_effect=cli.error.HTTPError("https://api.example.com", 400, "Bad Request", {}, io.BytesIO(body.encode())),
+        ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            result = cli.main(["routines", "save", "--name", "Push", "--exercise", "bench:3x8"])
 
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "workouts.save")
-        self.assertEqual(
-            payload["args"]["workout_json"],
-            '{"workout_type": "strength_training", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:55:00"}',
-        )
-        self.assertEqual(payload["args"]["timezone"], "Asia/Hong_Kong")
+        self.assertEqual(result, 2)
+        self.assertIn("HTTP 400", stderr.getvalue())
+        self.assertIn("a routine named 'Push' already exists", stderr.getvalue())
 
-    def test_workouts_save_accepts_shared_file_alias(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            workout_file = Path(temp_dir) / "workout.json"
-            workout_file.write_text(
-                '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}'
-            )
-            with mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(["workouts", "save", "--file", str(workout_file), "--json"])
+    def test_doctor_checks_the_v2_tool_surface(self) -> None:
+        me = {"user_id": "u", "display_name": "A", "timezone": "UTC", "scope": "agent"}
+        env = {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"}
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+            "ai_fitness_cli.cli.get_json", return_value=me
+        ), mock.patch("ai_fitness_cli.cli.post_json", return_value={"exit_code": 0, "stdout": "{}"}) as post_json:
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(cli.main(["doctor"]), 0)
+        self.assertIn("tool_surface=v2", stdout.getvalue())
+        self.assertEqual(post_json.call_args.args[2]["command"], "get_context_brief")
 
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "workouts.save")
-        self.assertEqual(
-            payload["args"]["workout_json"],
-            '{"workout_type": "running", "start_time": "2026-06-12T18:00:00", "end_time": "2026-06-12T18:30:00"}',
-        )
-        self.assertIsNone(payload["args"]["workout_file"])
-
-    def test_workout_write_commands_forward_json_payloads(self) -> None:
-        cases = [
-            (
-                [
-                    "workouts",
-                    "save",
-                    "--workout-json",
-                    '{"workout_type":"running","start_time":"2026-06-01T07:00:00","end_time":"2026-06-01T08:00:00"}',
-                    "--timezone",
-                    "Asia/Hong_Kong",
-                ],
-                "workouts.save",
-                "workout_json",
-            ),
-            (
-                [
-                    "workouts",
-                    "update",
-                    "--workout-id",
-                    "00000000-0000-0000-0000-000000000001",
-                    "--workout-update-json",
-                    '{"notes":"easy effort"}',
-                ],
-                "workouts.update",
-                "workout_update_json",
-            ),
-            (
-                [
-                    "workouts",
-                    "delete",
-                    "--workout-id",
-                    "00000000-0000-0000-0000-000000000001",
-                ],
-                "workouts.delete",
-                None,
-            ),
-        ]
-        for argv, command, json_key in cases:
-            with self.subTest(command=command), mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(argv)
-
-            self.assertEqual(result, 0)
-            _, _, payload = post_json.call_args.args
-            self.assertEqual(payload["command"], command)
-            if json_key:
-                self.assertIn(json_key, payload["args"])
-
-    def test_new_read_and_programme_commands_forward_remote_contracts(self) -> None:
-        cases = [
-            (
-                ["context", "trend", "--as-of", "2026-06-30", "--weeks", "6"],
-                "context.trend",
-                {"as_of": "2026-06-30", "weeks": 6},
-            ),
-            (
-                ["nutrition", "lookup", "char siu rice", "--portion-hint", "one plate"],
-                "nutrition.lookup",
-                {"query": "char siu rice", "portion_hint": "one plate"},
-            ),
-            (["programme", "list", "--limit", "10"], "programme.list", {"limit": 10}),
-            (
-                [
-                    "programme",
-                    "activate",
-                    "--projection-id",
-                    "00000000-0000-0000-0000-000000000001",
-                ],
-                "programme.activate",
-                {"projection_id": "00000000-0000-0000-0000-000000000001"},
-            ),
-            (["goals", "list"], "goals.list", {"include_archived": False}),
-            (["goals", "list", "--include-archived"], "goals.list", {"include_archived": True}),
-            (
-                ["goals", "save", "--title", "Run a 10k", "--description", "By spring", "--id", "g-1"],
-                "goals.save",
-                {"title": "Run a 10k", "description": "By spring", "id": "g-1"},
-            ),
-            (["goals", "archive", "--id", "g-1"], "goals.archive", {"id": "g-1"}),
-            (["dashboard", "metrics", "show"], "dashboard.metrics.show", {}),
-        ]
-        for argv, command, expected in cases:
-            with self.subTest(command=command), mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(argv)
-
-            self.assertEqual(result, 0)
-            _, _, payload = post_json.call_args.args
-            self.assertEqual(payload["command"], command)
-            for key, value in expected.items():
-                self.assertEqual(payload["args"][key], value)
-
-    def test_foods_search_remote_payload_defaults_and_filters(self) -> None:
-        with mock.patch.dict(
-            os.environ,
-            {
-                cli.API_URL_ENV: "https://api.example.com",
-                cli.API_KEY_ENV: "afb_agent_secret",
-            },
-            clear=False,
-        ), mock.patch(
-            "ai_fitness_cli.cli.post_json",
-            return_value={"exit_code": 0, "stdout": ""},
-        ) as post_json:
-            result = cli.main(
-                [
-                    "foods",
-                    "search",
-                    "soba",
-                    "--limit",
-                    "12",
-                    "--entry-limit",
-                    "2",
-                    "--start",
-                    "2026-05-01",
-                    "--end",
-                    "2026-06-02",
-                    "--meal-type",
-                    "lunch",
-                    "--json",
-                ]
-            )
-
-        self.assertEqual(result, 0)
-        _, _, payload = post_json.call_args.args
-        self.assertEqual(payload["command"], "foods.search")
-        self.assertEqual(payload["args"]["query"], "soba")
-        self.assertEqual(payload["args"]["limit"], 12)
-        self.assertEqual(payload["args"]["entry_limit"], 2)
-        self.assertEqual(payload["args"]["start"], "2026-05-01")
-        self.assertEqual(payload["args"]["end"], "2026-06-02")
-        self.assertEqual(payload["args"]["meal_type"], "lunch")
-        self.assertNotIn("status", payload["args"])
-        self.assertEqual(payload["args"]["format"], "json")
-
-    def test_foods_commands_remote_payloads(self) -> None:
-        cases = [
-            (["foods", "list", "--json"], "foods.list", {"limit": 50}),
-            (["foods", "history", "rice", "--json"], "foods.history", {"name": "rice", "limit": 20}),
-            (["foods", "get", "rice", "--json"], "foods.get", {"name": "rice", "limit": 5}),
-        ]
-        for argv, command, expected_args in cases:
-            with self.subTest(command=command), mock.patch.dict(
-                os.environ,
-                {
-                    cli.API_URL_ENV: "https://api.example.com",
-                    cli.API_KEY_ENV: "afb_agent_secret",
-                },
-                clear=False,
-            ), mock.patch(
-                "ai_fitness_cli.cli.post_json",
-                return_value={"exit_code": 0, "stdout": ""},
-            ) as post_json:
-                result = cli.main(argv)
-
-            self.assertEqual(result, 0)
-            _, _, payload = post_json.call_args.args
-            self.assertEqual(payload["command"], command)
-            for key, value in expected_args.items():
-                self.assertEqual(payload["args"][key], value)
-            self.assertEqual(payload["args"]["format"], "json")
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch(
+            "ai_fitness_cli.cli.get_json", return_value=me
+        ), mock.patch("ai_fitness_cli.cli.post_json", side_effect=ValueError("remote API returned HTTP 400: unknown")):
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(cli.main(["doctor"]), 1)
+        self.assertIn("tool_surface=unavailable", stdout.getvalue())
 
     def test_remote_error_formats_structured_backend_validation_details(self) -> None:
         body = json.dumps(
@@ -602,7 +495,7 @@ class CliTests(unittest.TestCase):
     def test_health_samples_command_is_not_registered(self) -> None:
         self.assertEqual(cli.main(["health", "samples"]), 2)
 
-    def test_public_remote_command_contract_is_explicit_and_complete(self) -> None:
+    def test_public_remote_command_contract_is_the_v2_tool_set(self) -> None:
         def collect(parser: argparse.ArgumentParser) -> set[str]:
             commands = set()
             remote_command = parser._defaults.get("remote_command")
@@ -614,71 +507,17 @@ class CliTests(unittest.TestCase):
                         commands.update(collect(child))
             return commands
 
-        expected = {
-            "context.brief",
-            "context.trend",
-            "progress.show",
-            "health.summary",
-            "health.body",
-            "health.catalog",
-            "workouts.list",
-            "workouts.save",
-            "workouts.update",
-            "workouts.delete",
-            "sync.status",
-            "profile.show",
-            "profile.update",
-            "meals.summary",
-            "meals.list",
-            "meals.save",
-            "meals.update",
-            "meals.delete",
-            "meals.scale",
-            "meals.item.update",
-            "meals.item.delete",
-            "meals.undo",
-            "nutrition.lookup",
-            "foods.search",
-            "foods.list",
-            "foods.history",
-            "foods.get",
-            "projections.list",
-            "projections.show",
-            "projections.deactivate",
-            "projections.delete",
-            "goals.list",
-            "goals.save",
-            "goals.archive",
-            "programme.list",
-            "programme.save",
-            "programme.activate",
-            "targets.validate",
-            "targets.explain",
-            "targets.phase.save",
-            "targets.schedule.save",
-            "targets.schedule.list",
-            "targets.schedule.show",
-            "targets.schedule.update",
-            "targets.schedule.deactivate",
-            "targets.schedule.delete",
-            "targets.daily.save",
-            "recommendation.write",
-            "dashboard.metrics.show",
-            "dashboard.metrics.set",
-            "routines.list",
-            "routines.get",
-            "routines.save",
-            "routines.delete",
-            "exercises.search",
-            "exercises.create",
-            "exercises.history",
-            "exercises.prs",
-            "sessions.list",
-            "sessions.get",
-            "sessions.save",
-        }
-
-        self.assertEqual(collect(cli.build_parser()), expected)
+        # The 22-tool v2 registry minus the two the CLI deliberately does not expose
+        # (agents keep their own memory and can do arithmetic).
+        self.assertEqual(
+            collect(cli.build_parser()),
+            {
+                "get_context_brief", "get_day", "get_health_trends", "search_foods", "log_meal",
+                "edit_meal", "get_routines", "save_routine", "edit_routine", "get_sessions",
+                "log_session", "edit_session", "search_exercises", "manage_exercise", "delete_item",
+                "list_recently_deleted", "restore_item", "set_targets", "update_profile", "log_workout",
+            },
+        )
 
     def test_skills_list_reports_bundled_skills(self) -> None:
         with mock.patch("sys.stdout") as stdout:
@@ -739,10 +578,10 @@ class CliTests(unittest.TestCase):
         meal_skill = (cli.get_skill_dir("meal-logging") / "SKILL.md").read_text()
 
         self.assertIn("fitness foods search", cli_skill)
-        self.assertIn("fitness foods get", cli_skill)
-        self.assertIn("fitness nutrition lookup", cli_skill)
+        self.assertIn("fitness foods list", cli_skill)
+        self.assertIn("fitness foods lookup", cli_skill)
         self.assertIn("fitness foods search", meal_skill)
-        self.assertIn("fitness nutrition lookup", meal_skill)
+        self.assertIn("fitness foods lookup", meal_skill)
         self.assertIn("not a generic food", meal_skill)
 
     def test_program_design_skill_documents_edit_in_place_programme_updates(self) -> None:
@@ -750,7 +589,7 @@ class CliTests(unittest.TestCase):
 
         self.assertIn("edit the\nexisting programme, phase, or schedule in place", program_skill)
         self.assertIn("Do not create another active", program_skill)
-        self.assertIn("deactivate or delete the superseded", program_skill)
+        self.assertIn("targets deactivate --projection-id", program_skill)
         self.assertIn("weekly_overrides`: flat weekly totals", program_skill)
         self.assertIn("weekday_targets`: recurring day-of-week values", program_skill)
 
@@ -774,6 +613,52 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness workouts save", program_skill)
         self.assertIn("set server-side", program_skill)
 
+
+    def test_skills_mention_only_commands_that_exist_in_v2(self) -> None:
+        import re
+
+        def resolves(words: list[str]) -> bool:
+            parser = cli.build_parser()
+            for word in words:
+                actions = [a for a in parser._actions if isinstance(a, argparse._SubParsersAction)]
+                if not actions:
+                    return True  # remaining words are arguments
+                choices = actions[0].choices
+                if word not in choices:
+                    return False
+                parser = choices[word]
+            return True
+
+        removed = (
+            "fitness projections", "fitness recommendation", "fitness progress", "fitness nutrition",
+            "targets explain", "targets validate", "targets schedule list", "targets schedule show",
+            "targets schedule update", "targets schedule delete", "meals undo", "foods get",
+            "foods history", "exercises prs", "health catalog",
+        )
+        checked = 0
+        for name in cli.available_skill_names():
+            text = (cli.get_skill_dir(name) / "SKILL.md").read_text()
+            for phrase in removed:
+                self.assertNotIn(phrase, text, f"{name} mentions removed command: {phrase}")
+            for block in re.findall(r"```bash\n(.*?)```", text, flags=re.S):
+                for line in block.splitlines():
+                    match = re.match(r"fitness ((?:[a-z][a-z-]*)(?: [a-z][a-z-]*){0,3})", line.strip())
+                    if not match or line.strip().startswith("fitness login"):
+                        continue
+                    words = match.group(1).split()
+                    self.assertTrue(resolves(words), f"{name}: unknown command in: {line}")
+                    checked += 1
+        self.assertGreater(checked, 60)
+
+    def test_skills_document_v2_operations(self) -> None:
+        skill = (cli.get_skill_dir("ascent-ai-cli") / "SKILL.md").read_text()
+        for phrase in (
+            "routines save", "upsert by name", "routines edit", "routines pin", "routines move",
+            "routines list --readiness", "sessions edit", "sessions apply-to-routine",
+            "sessions save-as-routine", "sessions delete", "deleted list", "deleted restore",
+            "profile week-start", "\"set_type\"", "tool_surface=v2",
+        ):
+            self.assertIn(phrase, skill)
 
     def test_skills_export_copies_to_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
