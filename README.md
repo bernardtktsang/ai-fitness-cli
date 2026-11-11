@@ -137,10 +137,24 @@ Use `fitness --help` or `fitness <command> --help` for the full command list.
 Keep this section updated whenever CLI behavior, bundled skills, examples, or
 backend-facing command contracts change.
 
+### 2026-11-11 - Tool surface v2.1
+
+- Aligned to the backend's 26-tool v2.1 registry. `fitness doctor` now reports
+  `tool_surface=v2.1` (probes `list_memory`; an older server reports unavailable).
+- New: `routines save --routines-file` (several routines, all-or-nothing; the
+  single-routine flags now send a one-item list to `save_routines`, plus `--days`),
+  `routines days --days mon,thu`, `exercises progress` (was `exercises history`,
+  kept as an alias), `sessions sync-routine [--dry-run] [--new-routine-name]`,
+  `suggest-next --routine`, `memory list`. Routine arguments accept id, slug or
+  name (`--routine`, same flag as `--routine-id`).
+- Removed: `sessions apply-to-routine` and `sessions save-as-routine` (use
+  `sessions sync-routine`).
+- Duplicate-protected writes print `duplicate of <id>` (JSON: `duplicate_of`).
+
 ### 2026-11-11 - Tool surface v2
 
 - Every command now maps to one operation of the backend's shared v2 agent tool
-  registry (the same 22 tools as the in-app coach and the MCP connector):
+  registry (the same 22 tools at the time as the in-app coach and the MCP connector):
   `POST /v1/agent/commands` takes the tool name as `command`. Older dotted
   command names (`meals.save`, `context.brief`, ...) are gone; update the CLI and
   the server together. `fitness doctor` reports `tool_surface=v2`.

@@ -16,8 +16,9 @@ CONFIG_ENV = "AI_FITNESS_CLI_CONFIG"
 API_URL_ENV = "FITNESS_API_URL"
 API_KEY_ENV = "FITNESS_API_KEY"
 DEFAULT_API_URL = "https://api.ascent-ai-fitness-coach.com"
-TOOL_SURFACE = "v2"
-DOCTOR_PROBE_COMMAND = "get_context_brief"
+TOOL_SURFACE = "v2.1"
+# list_memory only exists on the v2.1 surface, so an older server rejects the probe.
+DOCTOR_PROBE_COMMAND = "list_memory"
 LEGACY_API_URLS = {
     "https://api.bernardtktsangfitness.com": DEFAULT_API_URL,
 }
@@ -63,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_commands(subparsers)
     add_deleted_commands(subparsers)
     add_dashboard_commands(subparsers)
+    add_memory_commands(subparsers)
+    add_suggest_next_command(subparsers)
     return parser
 
 
@@ -182,10 +185,10 @@ def add_doctor_command(subparsers: argparse._SubParsersAction) -> None:
 
 # ---------------------------------------------------------------------------- v2 command tree
 #
-# Every remote command maps onto one tool of the backend's shared v2 agent registry (the same 22
+# Every remote command maps onto one tool of the backend's shared v2 agent registry (the same 26
 # tools hosted chat and MCP use). `remote_command` is the tool name; `remote_build(args)` turns the
-# parsed flags into that tool's input. `memory` (save_memory) and `calculate` are deliberately not
-# exposed: agents keep their own memory and can do arithmetic themselves.
+# parsed flags into that tool's input. `save_memory` and `calculate` are deliberately not exposed
+# (agents keep their own memory and can do arithmetic); `memory list` reads the saved notes.
 
 
 def compact(values: dict[str, Any]) -> dict[str, Any]:
@@ -797,6 +800,9 @@ def build_dashboard_prefs(args: argparse.Namespace) -> dict[str, Any]:
     return {"dashboard": prefs}
 
 
+ROUTINE_FLAGS = ("--routine-id", "--routine")
+ROUTINE_REF_HELP = "Routine id, slug or exact name."
+
 EXERCISE_SPEC_HELP = (
     "Single-target shortcut '<exercise>:<sets>x<reps>[@<kg>]', e.g. "
     "'barbell-bench-press:3x8-10@60' or timed 'plank:3x45s'. Repeat in workout order. "
@@ -825,17 +831,36 @@ def parse_exercise_spec(spec: str) -> dict[str, Any]:
     return entry
 
 
-def build_routine_save(args: argparse.Namespace) -> dict[str, Any]:
-    body = json_value(args, "routine")
-    if body is None:
+def build_routines_save(args: argparse.Namespace) -> dict[str, Any]:
+    """Build save_routines input: a list from --routines-json/--routines-file, one routine from
+    --routine-json/--file, or one routine from --name with --exercise shortcuts."""
+    many = json_value(args, "routines")
+    one = json_value(args, "routine")
+    given = [x for x in (many, one) if x is not None]
+    if len(given) + (1 if args.name or args.exercise else 0) > 1:
+        raise ValueError(
+            "use only one of --routines-json/--routines-file, --routine-json/--file, or --name/--exercise"
+        )
+    if many is not None:
+        routines = many["routines"] if isinstance(many, dict) and "routines" in many else many
+        if isinstance(routines, dict):
+            routines = [routines]
+        if not isinstance(routines, list) or not routines:
+            raise ValueError("--routines-json/--routines-file must hold a non-empty list of routines")
+        if args.position is not None or args.days is not None:
+            raise ValueError("--position and --days apply to a single routine; set them inside each routine")
+        return {"routines": routines}
+    if one is None:
         if not args.name:
-            raise ValueError("provide --routine-json/--file, or --name with --exercise")
-        body = {"name": args.name, "exercises": [parse_exercise_spec(s) for s in args.exercise or []]}
-    elif args.name or args.exercise:
-        raise ValueError("use either --routine-json/--file or --name/--exercise, not both")
+            raise ValueError(
+                "provide --routines-json/--routines-file, --routine-json/--file, or --name with --exercise"
+            )
+        one = {"name": args.name, "exercises": [parse_exercise_spec(s) for s in args.exercise or []]}
     if args.position is not None:
-        body = {**body, "position": args.position}
-    return body
+        one = {**one, "position": args.position}
+    if args.days is not None:
+        one = {**one, "days": csv(args.days) or []}
+    return {"routines": [one]}
 
 
 def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
@@ -849,7 +874,7 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
     set_remote(list_cmd, "get_routines", lambda a: {"include_readiness": a.readiness})
 
     get = nested.add_parser("get", help="Show one routine in full.")
-    get.add_argument("--routine-id", required=True)
+    get.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
     get.add_argument("--readiness", action="store_true", help="Add muscle readiness and the up-next pick.")
     add_common_output(get)
     set_remote(
@@ -859,19 +884,21 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
     save = nested.add_parser(
         "save",
         help=(
-            "Create a routine, or replace the one with the same name (upsert by name, "
-            "case-insensitive). Give per-set targets as JSON: "
-            '{"name": "Push", "exercises": [{"exercise": "<slug or name>", "sets": '
-            '[{"set_type": "warmup", "kg": 40, "reps": 10}, {"kg": 60, "reps": "6-8"}]}]}; '
-            "or use --name with --exercise shortcuts."
+            "Create or replace routines, all-or-nothing (upsert by name, case-insensitive). "
+            "Give a list as JSON: "
+            '{"routines": [{"name": "Push", "days": ["mon"], "exercises": [{"exercise": "<slug or name>", '
+            '"sets": [{"set_type": "warmup", "kg": 40, "reps": 10}, {"kg": 60, "reps": "6-8"}]}]}]}; '
+            "or one routine with --routine-json/--file or --name with --exercise shortcuts."
         ),
     )
+    add_json_input(save, "routines", required=False)
     add_json_input(save, "routine", required=False, file_aliases=("--file",))
     save.add_argument("--name", help="Routine name (with --exercise).")
     save.add_argument("--exercise", action="append", help=EXERCISE_SPEC_HELP)
-    save.add_argument("--position", type=int, help="Place the routine at this index in the routine order.")
+    save.add_argument("--position", type=int, help="Place a single routine at this index in the routine order.")
+    save.add_argument("--days", help="Planned weekdays for a single routine, e.g. mon,thu. Empty clears.")
     add_common_output(save)
-    set_remote(save, "save_routine", build_routine_save)
+    set_remote(save, "save_routines", build_routines_save)
 
     edit = nested.add_parser(
         "edit",
@@ -880,7 +907,7 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
             "move_exercise, replace_sets, set_rest; optionally pin or move it."
         ),
     )
-    edit.add_argument("--routine-id", required=True)
+    edit.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
     add_json_input(edit, "ops", required=False, file_aliases=("--file",))
     edit.add_argument("--pin-up-next", action="store_true", help="Pin as today's up-next routine.")
     edit.add_argument("--position", type=int, help="Move to this index in the routine order.")
@@ -899,18 +926,28 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
     )
 
     pin = nested.add_parser("pin", help="Pin a routine as today's up-next pick.")
-    pin.add_argument("--routine-id", required=True)
+    pin.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
     add_common_output(pin)
     set_remote(pin, "edit_routine", lambda a: {"routine_id": a.routine_id, "pin_up_next": True})
 
     move = nested.add_parser("move", help="Move a routine to a position in the routine order.")
-    move.add_argument("--routine-id", required=True)
+    move.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
     move.add_argument("--position", type=int, required=True, help="0-based index.")
     add_common_output(move)
     set_remote(move, "edit_routine", lambda a: {"routine_id": a.routine_id, "position": a.position})
 
+    days = nested.add_parser("days", help="Set a routine's planned weekdays (mon..sun); empty clears.")
+    days.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
+    days.add_argument("--days", required=True, help="Comma-separated weekdays, e.g. mon,thu. Use '' to clear.")
+    add_common_output(days)
+    set_remote(
+        days,
+        "edit_routine",
+        lambda a: {"routine_id": a.routine_id, "ops": [{"op": "set_days", "days": csv(a.days) or []}]},
+    )
+
     delete = nested.add_parser("delete", help="Delete a routine (restorable for 30 days).")
-    delete.add_argument("--routine-id", required=True)
+    delete.add_argument(*ROUTINE_FLAGS, dest="routine_id", required=True, help=ROUTINE_REF_HELP)
     add_common_output(delete)
     set_remote(delete, "delete_item", lambda a: {"type": "routine", "id": a.routine_id})
 
@@ -921,7 +958,7 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
     search.add_argument("--muscle", help="chest, back, shoulders, biceps, triceps, forearms, quads, hamstrings, glutes, calves, core, full_body.")
     search.add_argument("--equipment", help="barbell, dumbbell, machine, cable, bodyweight, kettlebell, band, smith_machine, other.")
     search.add_argument("--scope", choices=("all", "recent", "suggested"), default="all")
-    search.add_argument("--routine-id", help="Routine to suggest exercises for (with --scope suggested).")
+    search.add_argument(*ROUTINE_FLAGS, dest="routine_id", help="Routine (id, slug or name) to suggest exercises for (with --scope suggested).")
     search.add_argument("--limit", type=int, default=50)
     add_common_output(search)
     set_remote(
@@ -939,14 +976,18 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
-    history = nested.add_parser("history", help="Progress series and personal records for one exercise.")
+    history = nested.add_parser(
+        "progress",
+        aliases=["history"],
+        help="Progress series and personal records for one exercise.",
+    )
     history.add_argument("--exercise", required=True, help="Slug, exact name or id.")
     history.add_argument("--metric", help="weighted: heaviest|e1rm|volume; bodyweight: reps|added_kg; assisted: assistance; timed: hold.")
     history.add_argument("--range", choices=("1M", "3M", "1Y", "ALL"), default="3M")
     add_common_output(history)
     set_remote(
         history,
-        "search_exercises",
+        "get_exercise_progress",
         lambda a: compact({"exercise": a.exercise, "metric": a.metric, "range": a.range}),
     )
 
@@ -1036,33 +1077,25 @@ def add_logbook_commands(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
-    apply_cmd = nested.add_parser(
-        "apply-to-routine",
-        help="Write a session's exercises and sets back to its source routine (preview first).",
+    sync_cmd = nested.add_parser(
+        "sync-routine",
+        help=(
+            "Carry a session into a routine: write it back to its source routine "
+            "(--dry-run previews the diff), or save it as a new routine with --new-routine-name."
+        ),
     )
-    apply_cmd.add_argument("--session-id", required=True)
-    mode = apply_cmd.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--preview", action="store_true", help="Show the diff without changing the routine.")
-    mode.add_argument("--apply", action="store_true", help="Apply the diff to the routine.")
-    add_common_output(apply_cmd)
+    sync_cmd.add_argument("--session-id", required=True)
+    sync_cmd.add_argument("--dry-run", action="store_true", help="Preview the diff; change nothing.")
+    sync_cmd.add_argument("--new-routine-name", help="Save the session as a NEW routine with this name.")
+    add_common_output(sync_cmd)
     set_remote(
-        apply_cmd,
-        "edit_session",
-        lambda a: {"session_id": a.session_id, "routine_sync": "apply" if a.apply else "preview"},
-    )
-
-    save_routine = nested.add_parser("save-as-routine", help="Save a session's structure as a new routine.")
-    save_routine.add_argument("--session-id", required=True)
-    save_routine.add_argument("--routine-name", help="Defaults to the session's name.")
-    add_common_output(save_routine)
-    set_remote(
-        save_routine,
-        "edit_session",
+        sync_cmd,
+        "sync_session_routine",
         lambda a: compact(
             {
                 "session_id": a.session_id,
-                "routine_sync": "save_as_routine",
-                "routine_name": a.routine_name,
+                "dry_run": True if a.dry_run else None,
+                "new_routine_name": a.new_routine_name,
             }
         ),
     )
@@ -1088,6 +1121,24 @@ def add_deleted_commands(subparsers: argparse._SubParsersAction) -> None:
     restore.add_argument("--id", required=True)
     add_common_output(restore)
     set_remote(restore, "restore_item", lambda a: {"type": a.type, "id": a.id})
+
+
+def add_memory_commands(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser("memory", help="Durable notes saved about the user (read-only).")
+    nested = parser.add_subparsers(dest="memory_command", required=True)
+    list_cmd = nested.add_parser("list", help="List saved notes with when they were saved and changed.")
+    add_common_output(list_cmd)
+    set_remote(list_cmd, "list_memory")
+
+
+def add_suggest_next_command(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "suggest-next",
+        help="Next kg/reps (or seconds) per exercise in a routine by double progression, with stall flags.",
+    )
+    parser.add_argument(*ROUTINE_FLAGS, dest="routine", required=True, help=ROUTINE_REF_HELP)
+    add_common_output(parser)
+    set_remote(parser, "suggest_next", lambda a: {"routine": a.routine})
 
 
 def handle_login(args: argparse.Namespace) -> int:
@@ -1189,8 +1240,8 @@ def handle_doctor(args: argparse.Namespace) -> int:
     api_url, api_key, source = get_credentials()
     response = get_json(f"{api_url}/v1/agent/me", api_key)
     result = {"mode": "remote", "api_url": api_url, "credential_source": source, **response}
-    # Read-only probe of the v2 command surface (a server still on the old dotted commands
-    # rejects the tool name).
+    # Read-only probe of the v2.1 command surface (a server on an older tool surface rejects the
+    # tool name).
     try:
         post_json(
             f"{api_url}/v1/agent/commands",

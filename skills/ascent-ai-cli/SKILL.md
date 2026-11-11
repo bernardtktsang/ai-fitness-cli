@@ -7,13 +7,13 @@ description: Use when working with the Ascent AI CLI `fitness`, including setup,
 
 Use this skill as the command and schema reference for the remote-only Ascent AI CLI.
 
-The CLI exposes the same operations (tool surface v2) as the in-app coach chat and the MCP
+The CLI exposes the same operations (tool surface v2.1) as the in-app coach chat and the MCP
 connector, so every command below is one of those operations: reads are coarse, writes are
 small and explicit, and deletes are soft deletes you can undo.
 
 ## Default Workflow
 
-1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain. It also checks that the server speaks the v2 command surface (`tool_surface=v2`).
+1. Run `fitness doctor` when setup, auth, API URL, or credential state is uncertain. It also checks that the server speaks the v2.1 command surface (`tool_surface=v2.1`).
 2. Start with `fitness context brief --json`, then use the narrow reads (`context day`, `sessions list`, `routines list`, `health trends`, `foods search`) for detail.
 3. Use `--json` for commands whose output will be parsed programmatically.
 4. For structured writes, create a temporary JSON file and pass it with the relevant `--file` or `--*-file` flag (or inline with `--*-json`).
@@ -39,7 +39,7 @@ fitness doctor
 fitness doctor --json
 ```
 
-Expected setup output includes `mode=remote`, `api_url`, credential details and `tool_surface=v2`. If credentials are missing, run:
+Expected setup output includes `mode=remote`, `api_url`, credential details and `tool_surface=v2.1`. If credentials are missing, run:
 
 ```bash
 fitness login
@@ -114,17 +114,24 @@ Strength routines (per-set targets; weights are kg):
 ```bash
 fitness routines list --json
 fitness routines list --readiness --json            # muscle readiness per routine + the up-next pick
-fitness routines get --routine-id <uuid> --json
-fitness routines save --file /tmp/push.json --json   # upsert by name: replaces the routine with that name
+fitness routines get --routine <id|slug|name> --json   # --routine-id is the same flag; id, slug or exact name
+fitness routines save --routines-file /tmp/programme.json --json   # several routines, all-or-nothing; each upserted by name
+fitness routines save --file /tmp/push.json --json   # one routine; upsert by name: replaces the routine with that name
 fitness routines save --name Push --exercise "barbell-bench-press:3x8-10@60" --exercise "plank:3x45s" --json
 fitness routines edit --routine-id <uuid> --ops-file /tmp/ops.json --json
+fitness routines days --routine <id|slug|name> --days mon,thu --json   # planned weekdays (mon..sun); --days '' clears
 fitness routines pin --routine-id <uuid> --json      # pin as today's up-next pick
 fitness routines move --routine-id <uuid> --position 0 --json
 fitness routines delete --routine-id <uuid> --json
+fitness suggest-next --routine <id|slug|name> --json   # next kg/reps (seconds) per exercise, with the reason and a stalled flag
 ```
 
 `routines save` creates or replaces by name (names are unique, case-insensitive); send the
-full exercise list in workout order. Reference exercises by `slug` (from `exercises search`)
+full exercise list in workout order. `--routines-file` takes a JSON list of routines (or
+`{"routines": [...]}`) and saves them all or none, so save a whole programme in one call.
+Each routine may carry `days` (planned weekdays `mon`..`sun`; omit to leave unchanged, `[]`
+clears) and `position`. The single-routine flags (`--file`, `--name/--exercise`, `--position`,
+`--days`) build a one-item list. Reference exercises by `slug` (from `exercises search`)
 or exact name. Give per-set targets as a `sets` list, or use the single-target shortcut:
 
 ```json
@@ -156,21 +163,22 @@ For small changes use `routines edit` with ops applied atomically, e.g.:
  {"op": "remove_exercise", "exercise": "overhead-press"}]
 ```
 
+Add `{"op": "set_days", "days": ["mon", "thu"]}` to change planned weekdays (or use `routines days`).
 `routines edit` also takes `--pin-up-next` and `--position`. A rename to a name another routine
 already has is rejected with the server's message.
 
-Exercise library, history and PRs:
+Exercise library, progress and PRs:
 
 ```bash
 fitness exercises search --q bench --muscle chest --json
-fitness exercises search --scope suggested --routine-id <uuid> --json
+fitness exercises search --scope suggested --routine <id|slug|name> --json
 fitness exercises create --file /tmp/exercise.json --json
 fitness exercises rename --exercise <slug-or-id> --name "Low Cable Fly" --json
 fitness exercises archive --exercise <slug-or-id> --json      # custom exercises only; also: unarchive
-fitness exercises history --exercise barbell-bench-press --metric e1rm --range 3M --json   # series + personal records; range 1M, 3M, 1Y or ALL
+fitness exercises progress --exercise barbell-bench-press --metric e1rm --range 3M --json   # series + personal records; range 1M, 3M, 1Y or ALL
 ```
 
-Metrics for `exercises history`: weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`,
+Metrics for `exercises progress`: weighted `heaviest|e1rm|volume`, bodyweight `reps|added_kg`,
 assisted `assistance`, timed `hold`. Exercise types: weighted (kg, reps), bodyweight (reps,
 optional added kg), assisted (assistance in `kg`, lower is better), timed (`duration_seconds`).
 PRs ignore warm-ups, and the first session of an exercise is a baseline.
@@ -183,16 +191,33 @@ fitness sessions get --session-id <uuid> --json
 fitness sessions save --file /tmp/session.json --timezone Asia/Hong_Kong --json
 fitness sessions edit --session-id <uuid> --name "Chest" --notes "felt good" --json
 fitness sessions edit --session-id <uuid> --exercises-file /tmp/exercises.json --json   # replaces exercises and sets
-fitness sessions apply-to-routine --session-id <uuid> --preview --json   # diff against the source routine
-fitness sessions apply-to-routine --session-id <uuid> --apply --json
-fitness sessions save-as-routine --session-id <uuid> --routine-name "Chest A" --json
+fitness sessions sync-routine --session-id <uuid> --dry-run --json   # preview the diff against the source routine
+fitness sessions sync-routine --session-id <uuid> --json              # write the session back to its source routine
+fitness sessions sync-routine --session-id <uuid> --new-routine-name "Chest A" --json   # save it as a new routine
 fitness sessions delete --session-id <uuid> --json
 ```
 
 `sessions save` only backfills a *finished* session the user already did (the app starts and
 finishes live sessions); `finished_at` is required and future times are rejected. Sets count
 as completed unless `"completed": false`; mark `"set_type"` as `warmup`, `working`, `drop` or
-`failure`. Preview `apply-to-routine` before applying so the user can confirm the routine change.
+`failure`. Run `sync-routine --dry-run` before applying so the user can confirm the routine change.
+
+Suggest-next, memory and duplicate protection:
+
+```bash
+fitness suggest-next --routine "Push A" --json    # double progression; read-only, then write the numbers with routines edit
+fitness memory list --json                       # saved durable notes with created/updated times
+```
+
+`suggest-next` adds weight (+2.5 kg upper body, +5 kg lower) when every working set hit the top
+of its rep range, otherwise +1 rep (bodyweight +1 rep, timed +5 s), and flags `stalled` after 3
+sessions without progress; warm-ups never count.
+
+Routines, sessions, meals, exercises and goals in responses carry `created_at`, `updated_at` and
+an integer `revision`. Identical write commands within 10 minutes are not applied twice: the
+response says `duplicate of <id>` (JSON: a top-level `duplicate_of`) and returns the existing
+record, so a retry after a timeout is safe. If you see `duplicate_of`, do not repeat the write.
+Wherever a command takes a routine or exercise, pass an id, a slug or the exact name.
 
 Recently deleted (kept 30 days):
 
@@ -379,4 +404,4 @@ For weekday target schedules, weekday keys must be lowercase English day names:
 
 - A target write that returns `skipped_user_set` still succeeded for the other keys; the skipped keys keep the user's value.
 - There is no hard delete of plan items: retire them with `targets deactivate` (reversible).
-- Agents keep their own long-term memory; the CLI has no memory command.
+- Agents keep their own long-term memory; the CLI can only read the saved notes (`fitness memory list`), it has no memory write command.

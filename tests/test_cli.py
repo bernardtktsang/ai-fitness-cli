@@ -257,7 +257,7 @@ class CliTests(unittest.TestCase):
         self.assert_command(["workouts", "list", "--start", "2026-06-01", "--end", "2026-06-07"], "get_health_trends",
                             {"sections": ["workouts"], "start": "2026-06-01", "end": "2026-06-07"})
 
-    def test_routines_save_forwards_per_set_targets_and_file_alias(self) -> None:
+    def test_routines_save_wraps_a_single_routine_and_forwards_per_set_targets(self) -> None:
         routine = {
             "name": "Push",
             "exercises": [
@@ -267,12 +267,40 @@ class CliTests(unittest.TestCase):
                 }
             ],
         }
-        self.assert_command(["routines", "save", "--routine-json", json.dumps(routine)], "save_routine", routine)
+        self.assert_command(
+            ["routines", "save", "--routine-json", json.dumps(routine)], "save_routines", {"routines": [routine]}
+        )
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "routine.json"
             path.write_text(json.dumps(routine))
-            self.assert_command(["routines", "save", "--file", str(path), "--position", "0"], "save_routine",
-                                {**routine, "position": 0})
+            self.assert_command(
+                ["routines", "save", "--file", str(path), "--position", "0", "--days", "mon,thu"],
+                "save_routines",
+                {"routines": [{**routine, "position": 0, "days": ["mon", "thu"]}]},
+            )
+
+    def test_routines_save_many_routines_from_a_json_file(self) -> None:
+        push = {"name": "Push", "days": ["mon"], "exercises": [{"exercise": "barbell-bench-press", "sets": 3, "reps": "8-10"}]}
+        pull = {"name": "Pull", "days": ["wed"], "exercises": [{"exercise": "pull-up", "sets": 3, "reps": 8}]}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            as_list = Path(temp_dir) / "list.json"
+            as_list.write_text(json.dumps([push, pull]))
+            self.assert_command(
+                ["routines", "save", "--routines-file", str(as_list)], "save_routines", {"routines": [push, pull]}
+            )
+            wrapped = Path(temp_dir) / "wrapped.json"
+            wrapped.write_text(json.dumps({"routines": [push, pull]}))
+            self.assert_command(
+                ["routines", "save", "--routines-file", str(wrapped)], "save_routines", {"routines": [push, pull]}
+            )
+        self.assert_command(
+            ["routines", "save", "--routines-json", json.dumps([push])], "save_routines", {"routines": [push]}
+        )
+        with mock.patch("sys.stderr"):
+            self.assertEqual(self.run_cli(["routines", "save", "--routines-json", "[]"])[0], 2)
+            self.assertEqual(
+                self.run_cli(["routines", "save", "--routines-json", json.dumps([push]), "--position", "0"])[0], 2
+            )
 
     def test_routines_save_shortcut_expands_to_single_target_specs(self) -> None:
         self.assert_command(
@@ -282,23 +310,66 @@ class CliTests(unittest.TestCase):
                 "--exercise", "Overhead Press:4x6@42.5",
                 "--exercise", "plank:3x45s",
             ],
-            "save_routine",
+            "save_routines",
             {
-                "name": "Push",
-                "exercises": [
-                    {"exercise": "barbell-bench-press", "sets": 3, "reps": "8-10", "kg": 60.0},
-                    {"exercise": "Overhead Press", "sets": 4, "reps": 6, "kg": 42.5},
-                    {"exercise": "plank", "sets": 3, "seconds": 45},
-                ],
+                "routines": [
+                    {
+                        "name": "Push",
+                        "exercises": [
+                            {"exercise": "barbell-bench-press", "sets": 3, "reps": "8-10", "kg": 60.0},
+                            {"exercise": "Overhead Press", "sets": 4, "reps": 6, "kg": 42.5},
+                            {"exercise": "plank", "sets": 3, "seconds": 45},
+                        ],
+                    }
+                ]
             },
         )
         for argv in (
             ["routines", "save"],
             ["routines", "save", "--name", "X", "--exercise", "bench"],
             ["routines", "save", "--routine-json", "{}", "--name", "X"],
+            ["routines", "save", "--routine-json", "{}", "--routines-json", "[{}]"],
         ):
             with mock.patch("sys.stderr"):
                 self.assertEqual(self.run_cli(argv)[0], 2, argv)
+
+    def test_routines_days_sets_planned_weekdays(self) -> None:
+        self.assert_command(
+            ["routines", "days", "--routine", "push", "--days", "mon,thu"],
+            "edit_routine",
+            {"routine_id": "push", "ops": [{"op": "set_days", "days": ["mon", "thu"]}]},
+        )
+        self.assert_command(
+            ["routines", "days", "--routine-id", "Push A", "--days", ""],
+            "edit_routine",
+            {"routine_id": "Push A", "ops": [{"op": "set_days", "days": []}]},
+        )
+
+    def test_routine_refs_accept_id_slug_or_name(self) -> None:
+        self.assert_command(["routines", "get", "--routine", "push-a"], "get_routines",
+                            {"routine_id": "push-a", "include_readiness": False})
+        self.assert_command(["routines", "delete", "--routine", "Push A"], "delete_item",
+                            {"type": "routine", "id": "Push A"})
+        self.assert_command(["suggest-next", "--routine", "Push A"], "suggest_next", {"routine": "Push A"})
+        self.assert_command(["suggest-next", "--routine-id", "push-a"], "suggest_next", {"routine": "push-a"})
+        self.assert_command(["exercises", "search", "--scope", "suggested", "--routine", "push-a"],
+                            "search_exercises", {"scope": "suggested", "routine_id": "push-a", "limit": 50})
+
+    def test_memory_list_is_read_only(self) -> None:
+        self.assert_command(["memory", "list"], "list_memory", {})
+        with mock.patch("sys.stderr"):
+            self.assertEqual(cli.main(["memory", "save"]), 2)
+
+    def test_duplicate_of_is_passed_through_in_text_and_json(self) -> None:
+        text = "duplicate of abc: an identical call was made within the last 10 minutes\nok\n"
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            result, _ = self.run_cli(["meals", "add", "--calories", "100"], {"exit_code": 0, "stdout": text})
+        self.assertEqual(result, 0)
+        self.assertIn("duplicate of abc", out.getvalue())
+        body = json.dumps({"duplicate_of": "abc", "result": {"duplicate_of": "abc"}})
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.run_cli(["meals", "add", "--calories", "100", "--json"], {"exit_code": 0, "stdout": body})
+        self.assertEqual(json.loads(out.getvalue())["duplicate_of"], "abc")
 
     def test_routine_edit_pin_move_readiness_and_delete(self) -> None:
         ops = [{"op": "set_rest", "exercise": "plank", "rest_seconds": 90}]
@@ -318,8 +389,10 @@ class CliTests(unittest.TestCase):
     def test_exercise_commands_map_to_v2_tools(self) -> None:
         self.assert_command(["exercises", "search", "--q", "bench", "--scope", "recent"], "search_exercises",
                             {"q": "bench", "scope": "recent", "limit": 50})
-        self.assert_command(["exercises", "history", "--exercise", "barbell-bench-press", "--range", "ALL"], "search_exercises",
+        self.assert_command(["exercises", "progress", "--exercise", "barbell-bench-press", "--range", "ALL"], "get_exercise_progress",
                             {"exercise": "barbell-bench-press", "range": "ALL"})
+        self.assert_command(["exercises", "history", "--exercise", "cable-fly"], "get_exercise_progress",
+                            {"exercise": "cable-fly", "range": "3M"})
         self.assert_command(
             ["exercises", "create", "--exercise-json", '{"name": "Cable Fly", "primary_muscle": "chest"}'],
             "manage_exercise",
@@ -345,15 +418,16 @@ class CliTests(unittest.TestCase):
             "edit_session",
             {"session_id": "s1", "name": "Chest", "notes": "felt good", "exercises": [{"exercise": "plank", "sets": []}]},
         )
-        self.assert_command(["sessions", "apply-to-routine", "--session-id", "s1", "--preview"], "edit_session",
-                            {"session_id": "s1", "routine_sync": "preview"})
-        self.assert_command(["sessions", "apply-to-routine", "--session-id", "s1", "--apply"], "edit_session",
-                            {"session_id": "s1", "routine_sync": "apply"})
-        self.assert_command(["sessions", "save-as-routine", "--session-id", "s1", "--routine-name", "Chest A"], "edit_session",
-                            {"session_id": "s1", "routine_sync": "save_as_routine", "routine_name": "Chest A"})
+        self.assert_command(["sessions", "sync-routine", "--session-id", "s1"], "sync_session_routine",
+                            {"session_id": "s1"})
+        self.assert_command(["sessions", "sync-routine", "--session-id", "s1", "--dry-run"], "sync_session_routine",
+                            {"session_id": "s1", "dry_run": True})
+        self.assert_command(["sessions", "sync-routine", "--session-id", "s1", "--new-routine-name", "Chest A"],
+                            "sync_session_routine", {"session_id": "s1", "new_routine_name": "Chest A"})
         self.assert_command(["sessions", "delete", "--session-id", "s1"], "delete_item", {"type": "session", "id": "s1"})
-        with mock.patch("sys.stderr"):
-            self.assertEqual(cli.main(["sessions", "apply-to-routine", "--session-id", "s1"]), 2)
+        for removed in ("apply-to-routine", "save-as-routine"):
+            with mock.patch("sys.stderr"):
+                self.assertEqual(cli.main(["sessions", removed, "--session-id", "s1"]), 2)
 
     def test_recently_deleted_list_and_restore(self) -> None:
         self.assert_command(["deleted", "list"], "list_recently_deleted", {"type": "all"})
@@ -437,7 +511,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("HTTP 400", stderr.getvalue())
         self.assertIn("a routine named 'Push' already exists", stderr.getvalue())
 
-    def test_doctor_checks_the_v2_tool_surface(self) -> None:
+    def test_doctor_checks_the_v2_1_tool_surface(self) -> None:
         me = {"user_id": "u", "display_name": "A", "timezone": "UTC", "scope": "agent"}
         env = {cli.API_URL_ENV: "https://api.example.com", cli.API_KEY_ENV: "afb_agent_secret"}
         with mock.patch.dict(os.environ, env, clear=False), mock.patch(
@@ -445,8 +519,8 @@ class CliTests(unittest.TestCase):
         ), mock.patch("ai_fitness_cli.cli.post_json", return_value={"exit_code": 0, "stdout": "{}"}) as post_json:
             with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 self.assertEqual(cli.main(["doctor"]), 0)
-        self.assertIn("tool_surface=v2", stdout.getvalue())
-        self.assertEqual(post_json.call_args.args[2]["command"], "get_context_brief")
+        self.assertIn("tool_surface=v2.1", stdout.getvalue())
+        self.assertEqual(post_json.call_args.args[2]["command"], "list_memory")
 
         with mock.patch.dict(os.environ, env, clear=False), mock.patch(
             "ai_fitness_cli.cli.get_json", return_value=me
@@ -495,7 +569,7 @@ class CliTests(unittest.TestCase):
     def test_health_samples_command_is_not_registered(self) -> None:
         self.assertEqual(cli.main(["health", "samples"]), 2)
 
-    def test_public_remote_command_contract_is_the_v2_tool_set(self) -> None:
+    def test_public_remote_command_contract_is_the_v2_1_tool_set(self) -> None:
         def collect(parser: argparse.ArgumentParser) -> set[str]:
             commands = set()
             remote_command = parser._defaults.get("remote_command")
@@ -507,14 +581,15 @@ class CliTests(unittest.TestCase):
                         commands.update(collect(child))
             return commands
 
-        # The 22-tool v2 registry minus the two the CLI deliberately does not expose
+        # The 26-tool v2.1 registry minus the tools the CLI deliberately does not expose
         # (agents keep their own memory and can do arithmetic).
         self.assertEqual(
             collect(cli.build_parser()),
             {
                 "get_context_brief", "get_day", "get_health_trends", "search_foods", "log_meal",
-                "edit_meal", "get_routines", "save_routine", "edit_routine", "get_sessions",
-                "log_session", "edit_session", "search_exercises", "manage_exercise", "delete_item",
+                "edit_meal", "get_routines", "save_routines", "edit_routine", "get_sessions",
+                "log_session", "edit_session", "sync_session_routine", "search_exercises",
+                "get_exercise_progress", "suggest_next", "list_memory", "manage_exercise", "delete_item",
                 "list_recently_deleted", "restore_item", "set_targets", "update_profile", "log_workout",
             },
         )
@@ -633,7 +708,8 @@ class CliTests(unittest.TestCase):
             "fitness projections", "fitness recommendation", "fitness progress", "fitness nutrition",
             "targets explain", "targets validate", "targets schedule list", "targets schedule show",
             "targets schedule update", "targets schedule delete", "meals undo", "foods get",
-            "foods history", "exercises prs", "health catalog",
+            "foods history", "exercises prs", "health catalog", "apply-to-routine", "save-as-routine",
+            "exercises history",
         )
         checked = 0
         for name in cli.available_skill_names():
@@ -653,10 +729,10 @@ class CliTests(unittest.TestCase):
     def test_skills_document_v2_operations(self) -> None:
         skill = (cli.get_skill_dir("ascent-ai-cli") / "SKILL.md").read_text()
         for phrase in (
-            "routines save", "upsert by name", "routines edit", "routines pin", "routines move",
-            "routines list --readiness", "sessions edit", "sessions apply-to-routine",
-            "sessions save-as-routine", "sessions delete", "deleted list", "deleted restore",
-            "profile week-start", "\"set_type\"", "tool_surface=v2",
+            "routines save", "--routines-file", "routines days", "upsert by name", "routines edit", "routines pin", "routines move",
+            "routines list --readiness", "sessions edit", "sessions sync-routine",
+            "exercises progress", "suggest-next", "memory list", "duplicate_of", "sessions delete", "deleted list", "deleted restore",
+            "profile week-start", "\"set_type\"", "tool_surface=v2.1",
         ):
             self.assertIn(phrase, skill)
 
