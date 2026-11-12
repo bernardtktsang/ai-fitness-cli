@@ -11,7 +11,7 @@ Use this skill for program design, target setting, phase planning, and injury-aw
 
 - Use the CLI as the primary source of truth. Run `fitness doctor` if setup is uncertain.
 - Do not infer current health, workout, nutrition, or target data from memory when the CLI can read it.
-- Ask for missing human constraints before locking a plan: age, height, weight, body fat estimate, equipment, training days, session duration, schedule limits, injuries, goal, timeline, cardio preferences, and dietary restrictions.
+- Ask for missing human constraints before locking a plan: equipment, training days, session duration, schedule limits, injuries, goal, timeline, cardio preferences, and dietary restrictions. Ask for age, height, weight, or body fat only when you are calculating calorie or macro targets and the profile lacks them. When the user says to go ahead, or has already given enough, stop asking: choose sensible defaults, save the plan in the same turn, and state your assumptions afterwards.
 - Explain data gaps briefly. Distinguish reliable device data from stale, missing, or user-estimated values.
 - Verify all writes by reading the relevant data back.
 - Save durable coaching context to agent memory when the user states a dietary restriction, physical limitation or injury, lifestyle preference such as training time or rest days, goal update, stated dislike, or recurring context you would otherwise have to re-ask. Use short noun keys like `diet.vegetarian`, `injury.left-knee`, `preference.evening-workouts`, `goal.shift`, or `dislike.running`. Do not save structured data the CLI can read, such as current targets, today's meals, active programmes, or volatile one-off details. Stay within the 2200-character memory budget by deleting stale entries before adding more.
@@ -187,4 +187,4 @@ If the user challenges conventional recovery advice, search current evidence fro
 - Do not assume stale HealthKit nutrition macros represent the user's current diet.
 - Do not treat missing catalog metrics as merely delayed; they may not be tracked or ingested.
 - Do not rely on API/CLI success alone. Always read back persisted programmes, schedules, or targets.
-- Do not lock a generic template before asking about schedule, equipment, injuries, sleep, and preferences.
+- Do not lock a generic template when schedule, equipment, or injuries are genuinely unknown and the user has not asked you to go ahead; if they have, save sensible defaults and say what you assumed.
