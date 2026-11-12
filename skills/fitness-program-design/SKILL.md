@@ -61,6 +61,7 @@ Calculate from measured data first:
 - Lean gain: small surplus, usually +200 to +400 kcal on strength days.
 - Fat loss: moderate deficit, usually -300 to -500 kcal.
 - Recomposition: near maintenance with high protein and progressive training.
+- Evidence guidance, not a hard limit: intake below ~1,200 kcal/day, or loss faster than ~1% of body weight per week, raises the risk of muscle loss and under-fuelling. If a requested target goes past either, flag it once and briefly, offer a safer option, then respect the user's choice and set what they ask for. Do not repeat the warning.
 
 Set macros in this order:
 
