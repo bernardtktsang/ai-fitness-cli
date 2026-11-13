@@ -40,9 +40,18 @@ Nutrition label:
 
 ## Estimate Nutrition
 
-Calculate each item's calories, protein, carbs, and fat. The backend validates
+Estimate each item's calories, protein, carbs, and fat. The backend validates
 meal JSON keys strictly, so use only the exact flat field names below. Do not
 send nested `macros` or `nutrients` objects.
+
+The server does the meal maths: never multiply portions or total macros
+yourself. For each item give `amount` and `unit` (how much was eaten, e.g.
+`250` `g` or `2` `egg`) plus `nutrition_per`, the amount in the same unit that
+the nutrition values describe (`100` for per-100 g values, `1` for per-piece or
+per-serving values). The backend scales calories, macros and optional
+nutrients to `amount`, defaults `portion_description` to "amount unit", and
+returns each item's scaled values and the meal totals. Omit `nutrition_per`
+when the values already cover the whole item.
 
 When time permits, check personal food history before re-estimating common or
 recurring foods:
@@ -114,11 +123,13 @@ Example JSON:
   "items": [
     {
       "name": "Greek yogurt",
-      "portion_description": "250 g",
-      "calories": 150,
-      "protein_g": 25,
-      "carbs_g": 9,
-      "fat_g": 0
+      "amount": 250,
+      "unit": "g",
+      "nutrition_per": 100,
+      "calories": 59,
+      "protein_g": 10,
+      "carbs_g": 3.6,
+      "fat_g": 0.4
     }
   ],
   "notes": "logged from photo; portions estimated",
@@ -135,7 +146,7 @@ Timestamp rules:
 
 Rules:
 
-- Do not include `quantity`; use `portion_description`.
+- Do not include `quantity`; use `amount` + `unit` (+ `nutrition_per`), or `portion_description` for a free-text portion.
 - Do not include nested `macros` or `nutrients`; use the flat keys listed above.
 - Do not include meal-level nutrition fields such as `total_calories`, `protein_g`, `carbs_g`, or `fat_g`.
 - Always set a short `title` (max 80 chars, e.g. "Chicken rice bowl"); the app shows it on the meal card. `meal_type` is legacy, no longer shown in the app, and can be omitted.
@@ -153,7 +164,7 @@ fitness meals update --meal-id <meal_id> --file /tmp/meal.json --json
 
 Use the same meal when the user adds items after saving or correcting a meal. Do not create a new meal for each addition unless the user clearly starts a separate meal.
 
-When the user says "half a banana", "only one slice", or similar, apply the correction directly, recalculate totals, update the log, and present the new numbers.
+When the user says "half a banana", "only one slice", or similar, apply the correction directly (a new `amount`, or `fitness meals scale` / `item-update` with a servings scale), save it, and present the totals the backend returns.
 
 **Update recalculation behavior:** `fitness meals update` recalculates
 meal-level aggregate fields from the provided `items` array automatically: `total_calories`, `protein_g`, `carbs_g`, `fat_g`,

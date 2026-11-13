@@ -659,6 +659,14 @@ class CliTests(unittest.TestCase):
         self.assertIn("fitness foods lookup", meal_skill)
         self.assertIn("not a generic food", meal_skill)
 
+    def test_meal_skill_leaves_portion_scaling_and_totals_to_the_server(self) -> None:
+        meal_skill = (cli.get_skill_dir("meal-logging") / "SKILL.md").read_text()
+
+        self.assertIn("The server does the meal maths", meal_skill)
+        self.assertIn('"nutrition_per": 100', meal_skill)
+        self.assertIn('"amount": 250', meal_skill)
+        self.assertNotIn("recalculate totals, update the log", meal_skill)
+
     def test_program_design_skill_documents_edit_in_place_programme_updates(self) -> None:
         program_skill = (cli.get_skill_dir("fitness-program-design") / "SKILL.md").read_text()
 
